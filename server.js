@@ -87,6 +87,28 @@ const io = new Server(httpServer, {
   pingInterval: 25000
 });
 
+// Enhanced logging for better debugging
+const enableDebugLogging = (enabled = true) => {
+  if (!enabled) return;
+  
+  // Log all active games every minute for monitoring
+  setInterval(() => {
+    console.log(`[SERVER-MONITOR] Active games: ${activeGames.size}`);
+    if (activeGames.size > 0) {
+      console.log('[SERVER-MONITOR] Game IDs:', Array.from(activeGames.keys()).join(', '));
+    }
+  }, 60000);
+  
+  // Log socket connections/disconnections
+  io.engine.on('connection', (socket) => {
+    console.log(`[SERVER-SOCKET] New transport connection: ${socket.id}`);
+  });
+  
+  io.engine.on('close', (socket) => {
+    console.log(`[SERVER-SOCKET] Transport connection closed: ${socket.id}`);
+  });
+};
+
 // Express middleware
 app.use(express.json());
 
@@ -299,49 +321,122 @@ const serializeGameState = (game) => {
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
 
-  socket.on('createGame', async ({ mode, category, username }) => {
+  socket.on('createGame', async ({ mode, category, username, gameId: clientProvidedGameId }) => {
+    // Check for duplicate game creation attempts
+    if (socket.lastCreatedGameId && socket.lastCreationTime && 
+        Date.now() - socket.lastCreationTime < 5000) {
+      console.log(`[SERVER] Ignoring duplicate game creation request within 5s window for socket ${socket.id}`);
+      
+      // Find the existing game for this socket
+      for (const [gameId, game] of activeGames.entries()) {
+        if (game.players.some(p => p.id === socket.id)) {
+          console.log(`[SERVER] Player already has a game with ID ${gameId}, sending that instead`);
+          socket.emit('gameCreated', serializeGameState(game));
+          return;
+        }
+      }
+      return;
+    }
+    
     try {
-      const gameId = nanoid(6);
+      // Use the provided gameId if it exists, otherwise generate a new one
+      const gameId = clientProvidedGameId || nanoid(6);
+      console.log(`[SERVER] Creating new game with ID: ${gameId}`);
       
-      // Fetch questions from database
-      const gameQuestions = await fetchQuestionsFromDB(category);
-      
-      // Ensure we have exactly 10 questions
-      const selectedQuestions = gameQuestions
-        .sort(() => Math.random() - 0.5)
-        .slice(0, 10);
+      // Check if a game with this ID already exists
+      if (activeGames.has(gameId)) {
+        console.log(`[SERVER] Game with ID ${gameId} already exists, creating with new ID`);
+        // Generate a new unique ID
+        const newGameId = nanoid(6);
+        
+        // Fetch questions from database
+        const gameQuestions = await fetchQuestionsFromDB(category);
+        
+        // Ensure we have exactly 10 questions
+        const selectedQuestions = gameQuestions
+          .sort(() => Math.random() - 0.5)
+          .slice(0, 10);
 
-      const game = {
-        gameId,
-        mode,
-        category,
-        players: [{
-          id: socket.id,
-          username,
-          score: 0,
-          isReady: false,
-          hasFinished: false,
-          isHost: true,
-          rematchReady: false,
-          responseTimes: []
-        }],
-        currentQuestion: 0,
-        questions: selectedQuestions,
-        isGameStarted: false,
-        isGameEnded: false,
-        chatMessages: [],
-        startCountdown: null,
-        answeredPlayers: new Set(),
-        finishedPlayers: new Set(),
-        scores: new Map([[socket.id, 0]]),
-        questionStartTime: Date.now()
-      };
+        const game = {
+          gameId: newGameId,
+          mode,
+          category,
+          players: [{
+            id: socket.id,
+            username,
+            score: 0,
+            isReady: false,
+            hasFinished: false,
+            isHost: true,
+            rematchReady: false,
+            responseTimes: []
+          }],
+          currentQuestion: 0,
+          questions: selectedQuestions,
+          isGameStarted: false,
+          isGameEnded: false,
+          chatMessages: [],
+          startCountdown: null,
+          answeredPlayers: new Set(),
+          finishedPlayers: new Set(),
+          scores: new Map([[socket.id, 0]]),
+          questionStartTime: Date.now()
+        };
 
-      activeGames.set(gameId, game);
-      socket.join(gameId);
-      
-      socket.emit('gameCreated', serializeGameState(game));
-      console.log(`Game created: ${gameId} by ${username} (Host) with ${selectedQuestions.length} questions`);
+        activeGames.set(newGameId, game);
+        socket.join(newGameId);
+        
+        // Store the last creation info to prevent duplicates
+        socket.lastCreatedGameId = newGameId;
+        socket.lastCreationTime = Date.now();
+        
+        socket.emit('gameCreated', serializeGameState(game));
+        console.log(`Game created: ${newGameId} by ${username} (Host) with ${selectedQuestions.length} questions`);
+      } else {
+        // Fetch questions from database
+        const gameQuestions = await fetchQuestionsFromDB(category);
+        
+        // Ensure we have exactly 10 questions
+        const selectedQuestions = gameQuestions
+          .sort(() => Math.random() - 0.5)
+          .slice(0, 10);
+
+        const game = {
+          gameId,
+          mode,
+          category,
+          players: [{
+            id: socket.id,
+            username,
+            score: 0,
+            isReady: false,
+            hasFinished: false,
+            isHost: true,
+            rematchReady: false,
+            responseTimes: []
+          }],
+          currentQuestion: 0,
+          questions: selectedQuestions,
+          isGameStarted: false,
+          isGameEnded: false,
+          chatMessages: [],
+          startCountdown: null,
+          answeredPlayers: new Set(),
+          finishedPlayers: new Set(),
+          scores: new Map([[socket.id, 0]]),
+          questionStartTime: Date.now()
+        };
+
+        activeGames.set(gameId, game);
+        socket.join(gameId);
+        
+        // Store the last creation info to prevent duplicates
+        socket.lastCreatedGameId = gameId;
+        socket.lastCreationTime = Date.now();
+        
+        socket.emit('gameCreated', serializeGameState(game));
+        console.log(`Game created: ${gameId} by ${username} (Host) with ${selectedQuestions.length} questions`);
+      }
     } catch (error) {
       console.error('Error creating game:', error);
       socket.emit('error', { message: 'Failed to create game' });
@@ -632,6 +727,9 @@ io.on('connection', (socket) => {
     }
   });
 });
+
+// Enable debug logging for development
+enableDebugLogging(true);
 
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {

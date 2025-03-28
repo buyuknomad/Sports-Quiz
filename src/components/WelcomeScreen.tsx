@@ -60,10 +60,10 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.6 }}
-        className="text-center mb-12"
+        className="text-center mb-8 sm:mb-12"
       >
         <motion.h1 
-          className="text-4xl md:text-5xl font-bold text-white mb-4"
+          className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4"
           initial={{ scale: 0.9 }}
           animate={{ scale: 1 }}
           transition={{ type: "spring", stiffness: 200 }}
@@ -80,7 +80,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
             repeat: Infinity,
             ease: "easeInOut"
           }}
-          className="text-3xl"
+          className="text-2xl sm:text-3xl"
         >
           ⚽ 🎾
         </motion.div>
@@ -90,43 +90,44 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
         variants={container}
         initial="hidden"
         animate="show"
-        className="w-full max-w-2xl grid grid-cols-1 md:grid-cols-2 gap-6"
+        className="w-full max-w-lg grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6"
       >
         <motion.button
           variants={item}
           whileHover={{ scale: 1.02, y: -5 }}
           whileTap={{ scale: 0.98 }}
           onClick={() => handleModeSelect('solo')}
-          className="group relative bg-gray-800 rounded-2xl p-8 overflow-hidden"
+          className="group relative bg-gray-800 rounded-2xl p-6 sm:p-8 overflow-hidden"
         >
           <motion.div
             className="absolute inset-0 bg-gradient-to-br from-green-600 to-green-400 opacity-0 group-hover:opacity-10 transition-opacity duration-300"
           />
           
-          <div className="flex flex-col items-center gap-4 relative z-10">
+          <div className="flex flex-col items-center gap-3 sm:gap-4 relative z-10">
             <motion.div
               variants={iconAnimation}
               whileHover="hover"
-              className="w-16 h-16 flex items-center justify-center bg-gradient-to-br from-green-600 to-green-400 rounded-full"
+              className="w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center bg-gradient-to-br from-green-600 to-green-400 rounded-full"
             >
-              <Trophy size={32} className="text-white" />
+              <Trophy size={24} className="text-white sm:hidden" />
+              <Trophy size={32} className="text-white hidden sm:block" />
             </motion.div>
             
             <div className="text-center">
               <motion.h2 
-                className="text-2xl font-bold text-white flex items-center justify-center gap-2"
+                className="text-xl sm:text-2xl font-bold text-white flex items-center justify-center gap-2"
                 whileHover={{ scale: 1.05 }}
               >
                 Solo Play
                 <motion.span
                   animate={{ y: [0, -5, 0] }}
                   transition={{ duration: 1.5, repeat: Infinity }}
-                  className="text-3xl"
+                  className="text-2xl sm:text-3xl"
                 >
                   🏀
                 </motion.span>
               </motion.h2>
-              <p className="mt-2 text-gray-400 text-sm">
+              <p className="mt-2 text-gray-400 text-xs sm:text-sm">
                 Practice mode with no time pressure
               </p>
             </div>
@@ -145,36 +146,37 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
           whileHover={{ scale: 1.02, y: -5 }}
           whileTap={{ scale: 0.98 }}
           onClick={() => handleModeSelect('1v1')}
-          className="group relative bg-gray-800 rounded-2xl p-8 overflow-hidden"
+          className="group relative bg-gray-800 rounded-2xl p-6 sm:p-8 overflow-hidden"
         >
           <motion.div
             className="absolute inset-0 bg-gradient-to-br from-blue-600 to-blue-400 opacity-0 group-hover:opacity-10 transition-opacity duration-300"
           />
           
-          <div className="flex flex-col items-center gap-4 relative z-10">
+          <div className="flex flex-col items-center gap-3 sm:gap-4 relative z-10">
             <motion.div
               variants={iconAnimation}
               whileHover="hover"
-              className="w-16 h-16 flex items-center justify-center bg-gradient-to-br from-blue-600 to-blue-400 rounded-full"
+              className="w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center bg-gradient-to-br from-blue-600 to-blue-400 rounded-full"
             >
-              <Swords size={32} className="text-white" />
+              <Swords size={24} className="text-white sm:hidden" />
+              <Swords size={32} className="text-white hidden sm:block" />
             </motion.div>
             
             <div className="text-center">
               <motion.h2 
-                className="text-2xl font-bold text-white flex items-center justify-center gap-2"
+                className="text-xl sm:text-2xl font-bold text-white flex items-center justify-center gap-2"
                 whileHover={{ scale: 1.05 }}
               >
                 1v1 Mode
                 <motion.span
                   animate={{ y: [0, -5, 0] }}
                   transition={{ duration: 1.5, repeat: Infinity }}
-                  className="text-3xl"
+                  className="text-2xl sm:text-3xl"
                 >
                   ⚔️
                 </motion.span>
               </motion.h2>
-              <p className="mt-2 text-gray-400 text-sm">
+              <p className="mt-2 text-gray-400 text-xs sm:text-sm">
                 Challenge a friend in real-time
               </p>
             </div>
@@ -193,9 +195,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6 }}
-        className="mt-8 text-center"
+        className="mt-6 sm:mt-8 text-center"
       >
-        <p className="text-gray-400">
+        <p className="text-gray-400 text-sm sm:text-base">
           Playing as: {' '}
           <motion.span 
             className="text-green-400 font-semibold"

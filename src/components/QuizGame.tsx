@@ -46,6 +46,16 @@ const optionVariants = {
 };
 
 const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMode }) => {
+  // Log component mounting
+  useEffect(() => {
+    console.log('QuizGame component mounted for mode:', mode);
+    
+    // Cleanup when unmounting
+    return () => {
+      console.log('QuizGame component unmounting');
+    };
+  }, [mode]);
+
   const soloStore = useGameStore();
   const multiStore = useOneVsOneStore();
   const store = mode === 'solo' ? soloStore : multiStore;
@@ -79,6 +89,15 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
   const currentPlayer = getCurrentPlayer();
   const question = questions[currentQuestion];
   const isMultiplayer = mode !== 'solo';
+
+  // Monitor question changes
+  useEffect(() => {
+    if (question) {
+      console.log(`Current question (${currentQuestion}):`, question.question.substring(0, 30) + '...');
+    } else {
+      console.log('No question available yet');
+    }
+  }, [question, currentQuestion]);
 
   const categoryConfig = {
     football: { icon: Trophy, emoji: '⚽', color: 'text-yellow-400' },
@@ -144,16 +163,19 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
   ]);
 
   useEffect(() => {
-    console.log('Question changed, resetting state');
-    
-    setIsButtonEnabled(true);
-    setSelectedAnswer(null);
-    setIsAnswerChecked(false);
-    setIsCorrect(false);
-    setLocalTime(15);
-    setEarnedPoints(0);
-    setCurrentBonusTier(null);
-    setCurrentCorrectAnswer(null);
+    // Only reset state if we actually have a question to display
+    if (question) {
+      console.log('Question changed, resetting state for question:', currentQuestion);
+      
+      setIsButtonEnabled(true);
+      setSelectedAnswer(null);
+      setIsAnswerChecked(false);
+      setIsCorrect(false);
+      setLocalTime(15);
+      setEarnedPoints(0);
+      setCurrentBonusTier(null);
+      setCurrentCorrectAnswer(null);
+    }
   }, [currentQuestion, question]);
 
   const getBonusTier = useCallback((time: number): BonusTier => {
@@ -353,46 +375,15 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
         )}
       </AnimatePresence>
 
-      {/* Header Bar with Navigation Buttons */}
+      {/* Header Bar with Game Info Only */}
       <motion.div 
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="fixed top-0 left-0 right-0 bg-gray-800/90 backdrop-blur-sm border-b border-gray-700/50 z-50"
+        className="fixed top-0 left-0 right-0 bg-gray-800/90 backdrop-blur-sm border-b border-gray-700/50 z-40"
       >
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          {/* Left side - Navigation buttons */}
-          <div className="flex items-center gap-2">
-            {/* Back to Category Button */}
-            {onBackToCategory && (
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={handleBackToCategory}
-                className="flex items-center gap-1 px-3 py-1 bg-gray-700/50 hover:bg-gray-700 
-                         rounded-lg text-white text-sm transition-colors group"
-              >
-                <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                <span>Categories</span>
-              </motion.button>
-            )}
-
-            {/* Back to Home/Mode Button */}
-            {onBackToMode && (
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={handleBackToMode}
-                className="flex items-center gap-1 px-3 py-1 bg-gray-700/50 hover:bg-gray-700 
-                         rounded-lg text-white text-sm transition-colors group"
-              >
-                <Home className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                <span>Home</span>
-              </motion.button>
-            )}
-          </div>
-          
-          {/* Middle - Centered title */}
-          <div className="flex items-center justify-center gap-2 absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
+          {/* Centered title */}
+          <div className="flex items-center justify-center gap-2 mx-auto">
             <motion.div
               whileHover={{ scale: 1.1, rotate: 360 }}
               transition={{ duration: 0.5 }}
@@ -460,6 +451,41 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
           </div>
         </div>
       </motion.div>
+
+      {/* Bottom Navigation Buttons */}
+      <div className="fixed bottom-6 left-6 z-50 flex flex-col gap-3">
+        {/* Back to Category Button */}
+        {onBackToCategory && (
+          <motion.button
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={handleBackToCategory}
+            className="flex items-center gap-2 px-4 py-3 bg-gray-800/90 hover:bg-gray-700 
+                     rounded-full shadow-lg text-white transition-colors group"
+          >
+            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+            <span className="hidden sm:inline">Categories</span>
+          </motion.button>
+        )}
+
+        {/* Back to Home/Mode Button */}
+        {onBackToMode && (
+          <motion.button
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0, transition: { delay: 0.1 } }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={handleBackToMode}
+            className="flex items-center gap-2 px-4 py-3 bg-gray-800/90 hover:bg-gray-700 
+                     rounded-full shadow-lg text-white transition-colors group"
+          >
+            <Home className="w-5 h-5 group-hover:scale-110 transition-transform" />
+            <span className="hidden sm:inline">Home</span>
+          </motion.button>
+        )}
+      </div>
 
       <div className="container-game pt-20">
         <motion.div 
