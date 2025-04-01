@@ -37,6 +37,9 @@ export const supabase = createClient<Database>(
 const questionCache = new Map<string, any>();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
+// Add a pending requests tracker to avoid duplicate simultaneous fetches
+const pendingRequests = new Map<string, Promise<any>>();
+
 // Local fallback questions by category
 const fallbackQuestions = {
   football: [
@@ -205,6 +208,13 @@ function getFallbackQuestions(category: Category) {
 export async function fetchQuestions(category: Category) {
   console.log(`Fetching questions for category: ${category}`);
   
+  // Check if there's already a request in progress for this category
+  const pendingKey = `pending_${category}`;
+  if (pendingRequests.has(pendingKey)) {
+    console.log('Request already in progress for category:', category);
+    return pendingRequests.get(pendingKey);
+  }
+  
   // Check cache first
   const cacheKey = `questions_${category}`;
   const cached = questionCache.get(cacheKey);
@@ -214,24 +224,60 @@ export async function fetchQuestions(category: Category) {
     return cached.data;
   }
 
-  try {
-    // Try to fetch from Supabase
-    console.log('Fetching questions from Supabase...');
-    let query = supabase.from('questions').select('*').eq('active', true);
-    
-    if (category !== 'mixed') {
-      query = query.eq('category', category);
-    }
-    
-    const { data, error } = await query;
-    
-    if (error) {
-      console.error('Supabase query error:', error);
-      throw error;
-    }
-    
-    if (!data || data.length === 0) {
-      console.warn('No questions found in Supabase, using fallback questions');
+  // Create the promise for fetching questions
+  const fetchPromise = (async () => {
+    try {
+      // Try to fetch from Supabase
+      console.log('Fetching questions from Supabase...');
+      let query = supabase.from('questions').select('*').eq('active', true);
+      
+      if (category !== 'mixed') {
+        query = query.eq('category', category);
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) {
+        console.error('Supabase query error:', error);
+        throw error;
+      }
+      
+      if (!data || data.length === 0) {
+        console.warn('No questions found in Supabase, using fallback questions');
+        const questions = getFallbackQuestions(category);
+        
+        // Cache the fallback results
+        questionCache.set(cacheKey, {
+          data: questions,
+          timestamp: Date.now()
+        });
+        
+        return questions;
+      }
+      
+      // Transform and randomize questions
+      const questions = data
+        .map(q => ({
+          id: q.id,
+          category: q.category as Category, // Keep the original category from the database
+          question: q.question,
+          options: q.options,
+          correctAnswer: q.correct_answer
+        }))
+        .sort(() => Math.random() - 0.5)
+        .slice(0, 10);
+      
+      // Cache the results
+      questionCache.set(cacheKey, {
+        data: questions,
+        timestamp: Date.now()
+      });
+      
+      return questions;
+    } catch (error) {
+      console.error('Error fetching questions:', error);
+      
+      // Use fallback questions on error
       const questions = getFallbackQuestions(category);
       
       // Cache the fallback results
@@ -241,41 +287,16 @@ export async function fetchQuestions(category: Category) {
       });
       
       return questions;
+    } finally {
+      // Remove the pending request once completed
+      pendingRequests.delete(pendingKey);
     }
-    
-    // Transform and randomize questions
-    const questions = data
-      .map(q => ({
-        id: q.id,
-        category: q.category as Category, // Keep the original category from the database
-        question: q.question,
-        options: q.options,
-        correctAnswer: q.correct_answer
-      }))
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 10);
-    
-    // Cache the results
-    questionCache.set(cacheKey, {
-      data: questions,
-      timestamp: Date.now()
-    });
-    
-    return questions;
-  } catch (error) {
-    console.error('Error fetching questions:', error);
-    
-    // Use fallback questions on error
-    const questions = getFallbackQuestions(category);
-    
-    // Cache the fallback results
-    questionCache.set(cacheKey, {
-      data: questions,
-      timestamp: Date.now()
-    });
-    
-    return questions;
-  }
+  })();
+  
+  // Store the promise in the pending requests map
+  pendingRequests.set(pendingKey, fetchPromise);
+  
+  return fetchPromise;
 }
 
 export function clearQuestionCache() {
