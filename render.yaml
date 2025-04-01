@@ -22,10 +22,10 @@ services:
       mountPath: /tmp
       sizeGB: 1
 
-      cronJobs:
+    cronJobs:
   - name: daily-question-generator
     # Schedule runs at 5:00 AM UTC every day. Adjust as needed.
     # Use https://crontab.guru/ to help define schedules.
-    schedule: "32 11 * * *"
+    schedule: "6 12 * * *"
     # Command to execute the TypeScript script using tsx
     command: "npx tsx scripts/generate-daily-questions.ts"
