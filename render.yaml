@@ -26,6 +26,6 @@ services:
   - name: daily-question-generator
     # Schedule runs at 5:00 AM UTC every day. Adjust as needed.
     # Use https://crontab.guru/ to help define schedules.
-    schedule: "0 5 * * *"
+    schedule: "09:45"
     # Command to execute the TypeScript script using tsx
     command: "npx tsx scripts/generate-daily-questions.ts"
