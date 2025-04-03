@@ -1,8 +1,20 @@
-// Enhanced store with improved socket connection handling and deployment support
 import { create } from 'zustand';
 import { io, Socket } from 'socket.io-client';
 import { nanoid } from 'nanoid';
 import type { Category, Player, Question, ChatMessage } from '../types';
+
+// Debug flag
+const DEBUG = true;
+
+// Add global window properties for socket management
+declare global {
+  interface Window {
+    _globalSocket?: Socket;
+    _lastGameCreationTime?: number;
+    _socketInitializeAttempt?: number;
+    _gameCreationPromise?: Promise<void>;
+  }
+}
 
 // Get the server URL based on environment
 const getServerUrl = () => {
@@ -14,16 +26,50 @@ const getServerUrl = () => {
   return 'http://localhost:3000';
 };
 
-const socket: Socket = io(getServerUrl(), {
-  transports: ['websocket', 'polling'],
-  withCredentials: true,
-  reconnection: true,
-  reconnectionAttempts: 20,
-  reconnectionDelay: 1000,
-  timeout: 60000,
-  autoConnect: false,
-  path: '/socket.io/'
-});
+// Use the global socket if it exists or create a new one
+let socket: Socket;
+if (window._globalSocket) {
+  console.log('Using existing global socket');
+  socket = window._globalSocket;
+} else {
+  socket = io(getServerUrl(), {
+    transports: ['websocket', 'polling'],
+    withCredentials: true,
+    reconnection: true,
+    reconnectionAttempts: 20,
+    reconnectionDelay: 1000,
+    timeout: 60000,
+    autoConnect: false,
+    path: '/socket.io/'
+  });
+  window._globalSocket = socket;
+}
+
+// Debug logging for socket events
+const logSocketEvents = () => {
+  if (!DEBUG) return;
+  
+  // Only set up listeners once
+  if (!(socket as any)._debugEventsAttached) {
+    (socket as any)._debugEventsAttached = true;
+    
+    const originalOn = socket.on.bind(socket);
+    socket.on = function(event, listener) {
+      console.log(`[SOCKET-DEBUG] Adding listener for: ${event}`);
+      return originalOn(event, listener);
+    };
+    
+    const originalEmit = socket.emit.bind(socket);
+    socket.emit = function(event, ...args) {
+      console.log(`[SOCKET-DEBUG] Emitting event: ${event}`, args[0] ? '(with data)' : '(no data)');
+      return originalEmit(event, ...args);
+    };
+    
+    socket.onAny((event, ...args) => {
+      console.log(`[SOCKET-DEBUG] Received event: ${event}`, args[0] ? '(with data)' : '(no data)');
+    });
+  }
+};
 
 interface OneVsOneState {
   gameId: string;
@@ -48,6 +94,7 @@ interface OneVsOneState {
   isConnecting: boolean;
   hasJoinedGame: boolean;
   completionTime?: number;
+  isGameCreationInProgress: boolean;
 }
 
 interface OneVsOneStore extends OneVsOneState {
@@ -65,7 +112,7 @@ interface OneVsOneStore extends OneVsOneState {
 }
 
 const initialState: OneVsOneState = {
-  gameId: nanoid(6),
+  gameId: '', // Changed from nanoid(6) to empty string
   category: 'mixed',
   players: [],
   currentQuestion: 0,
@@ -85,10 +132,16 @@ const initialState: OneVsOneState = {
   currentPlayerId: '',
   socket,
   isConnecting: false,
-  hasJoinedGame: false
+  hasJoinedGame: false,
+  isGameCreationInProgress: false
 };
 
 export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
+  // Enable debug logging
+  if (DEBUG) {
+    logSocketEvents();
+  }
+  
   // Socket event handlers
   socket.on('connect', () => {
     console.log('Socket connected:', socket.id);
@@ -101,7 +154,11 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
 
   socket.on('connect_error', (error) => {
     console.error('Socket connection error:', error);
-    set(state => ({ ...state, isConnecting: false }));
+    set(state => ({ 
+      ...state, 
+      isConnecting: false,
+      isGameCreationInProgress: false 
+    }));
   });
 
   socket.on('gameCreated', (data) => {
@@ -114,6 +171,7 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
       players: data.players,
       waitingForPlayers: true,
       hasJoinedGame: true,
+      isGameCreationInProgress: false,
       playerResponseTimes: new Map(),
       scores: new Map(data.players.map((p: Player) => [p.id, p.score || 0]))
     }));
@@ -146,7 +204,8 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
         startCountdown: data.startCountdown,
         hasJoinedGame: isInGame || state.hasJoinedGame,
         playerResponseTimes: updatedResponseTimes,
-        scores: updatedScores
+        scores: updatedScores,
+        isGameCreationInProgress: false
       };
     });
   });
@@ -174,6 +233,9 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
       playerResponseTimes: new Map(),
       scores: new Map(data.players.map((p: Player) => [p.id, p.score || 0]))
     }));
+    
+    // Force navigation to game screen via a custom event
+    window.dispatchEvent(new CustomEvent('sportiq:gameStarted'));
   });
 
   socket.on('scoreUpdate', (data) => {
@@ -306,12 +368,20 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
 
   socket.on('error', (error) => {
     console.error('Socket error:', error);
-    set(state => ({ ...state, isConnecting: false }));
+    set(state => ({ 
+      ...state, 
+      isConnecting: false,
+      isGameCreationInProgress: false 
+    }));
   });
 
   socket.on('disconnect', () => {
     console.log('Socket disconnected');
-    set(state => ({ ...state, isConnecting: false }));
+    set(state => ({ 
+      ...state, 
+      isConnecting: false,
+      isGameCreationInProgress: false
+    }));
   });
 
   return {
@@ -320,51 +390,98 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
 
     initializeGame: async () => {
       const state = get();
-      if (state.isConnecting || socket.connected) {
-        return;
+      
+      // Check for global initialize attempt lock
+      const now = Date.now();
+      if (window._socketInitializeAttempt && now - window._socketInitializeAttempt < 5000) {
+        console.log('Socket initialization attempted recently, using existing socket');
+        
+        if (socket.connected) {
+          set(state => ({
+            ...state,
+            currentPlayerId: socket.id,
+            isConnecting: false
+          }));
+          return Promise.resolve();
+        }
       }
-
+      
+      window._socketInitializeAttempt = now;
+      
+      // If initialization is already in progress, return the existing promise
+      if ((state as any)._initializationPromise) {
+        console.log('Initialization already in progress, returning existing promise');
+        return (state as any)._initializationPromise;
+      }
+      
+      // If we're already connected, don't try to reconnect
+      if (socket.connected) {
+        console.log('Socket already connected, skipping initialization');
+        
+        // Update the state with the socket ID if needed
+        if (state.currentPlayerId !== socket.id) {
+          set({
+            currentPlayerId: socket.id,
+            isConnecting: false
+          });
+        }
+        
+        return Promise.resolve();
+      }
+      
+      console.log('Initializing game, connecting socket...');
       set({ isConnecting: true });
-
-      return new Promise<void>((resolve, reject) => {
+    
+      // Create a promise for the initialization
+      const initPromise = new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           socket.off('connect', handleConnect);
           socket.off('connect_error', handleError);
-          set({ isConnecting: false });
+          set(state => ({ 
+            ...state, 
+            isConnecting: false,
+            _initializationPromise: null
+          }));
           reject(new Error('Socket connection timeout'));
         }, 10000);
-
+    
         const handleConnect = () => {
-          console.log('Socket connected for 1v1 game');
+          console.log('Socket connected for 1v1 game with ID:', socket.id);
           clearTimeout(timeout);
           socket.off('connect', handleConnect);
           socket.off('connect_error', handleError);
           
-          // Generate a new game ID when initializing
-          const newGameId = nanoid(6);
+          // Store the socket globally
+          window._globalSocket = socket;
           
           set({
             ...initialState,
             socket,
             currentPlayerId: socket.id,
             isConnecting: false,
-            gameId: newGameId,
+            gameId: '', // Empty string, not nanoid()
             hasJoinedGame: false,
             playerResponseTimes: new Map(),
-            scores: new Map()
+            scores: new Map(),
+            _initializationPromise: null
           });
           resolve();
         };
-
+    
         const handleError = (error: Error) => {
           console.error('Socket connection error:', error);
           clearTimeout(timeout);
           socket.off('connect', handleConnect);
           socket.off('connect_error', handleError);
-          set({ isConnecting: false });
+          set(state => ({ 
+            ...state, 
+            isConnecting: false,
+            _initializationPromise: null,
+            isGameCreationInProgress: false
+          }));
           reject(error);
         };
-
+    
         if (socket.connected) {
           handleConnect();
         } else {
@@ -373,40 +490,98 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
           socket.connect();
         }
       });
+    
+      // Store the promise in the state
+      set(state => ({ 
+        ...state, 
+        _initializationPromise: initPromise
+      }));
+    
+      return initPromise;
     },
 
     createGame: async (category: Category) => {
       const username = localStorage.getItem('username') || 'Guest';
       const state = get();
       
-      if (!socket.connected) {
-        console.error('Socket not connected');
-        throw new Error('Socket not connected');
+      // Check if game creation is already in progress
+      if (state.isGameCreationInProgress) {
+        console.log('Game creation already in progress, ignoring duplicate request');
+        return Promise.resolve();
       }
-
-      return new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          socket.off('gameCreated');
-          reject(new Error('Game creation timeout'));
-        }, 5000);
-
-        socket.once('gameCreated', () => {
-          clearTimeout(timeout);
-          set(state => ({
-            ...state,
-            hasJoinedGame: true
-          }));
-          resolve();
+      
+      // Check if we already have joined a game
+      if (state.hasJoinedGame) {
+        console.log('Already joined a game, updating category instead');
+        get().setCategory(category);
+        return Promise.resolve();
+      }
+      
+      // Set flag to prevent duplicate creation
+      set(state => ({ ...state, isGameCreationInProgress: true }));
+      
+      try {
+        if (!socket.connected) {
+          console.log('Socket not connected, attempting to connect before creating game');
+          try {
+            await get().initializeGame();
+          } catch (error) {
+            console.error('Failed to initialize socket connection:', error);
+            set(state => ({ ...state, isGameCreationInProgress: false }));
+            throw new Error('Failed to connect to game server');
+          }
+        }
+    
+        console.log('Creating game with category:', category, 'Socket connected:', socket.connected);
+        
+        // Use a global promise to track game creation
+        if (window._gameCreationPromise) {
+          console.log('Game creation already in progress globally');
+          return window._gameCreationPromise;
+        }
+        
+        const createPromise = new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            socket.off('gameCreated');
+            window._gameCreationPromise = undefined;
+            set(state => ({ ...state, isGameCreationInProgress: false }));
+            reject(new Error('Game creation timeout'));
+          }, 5000);
+    
+          socket.once('gameCreated', () => {
+            clearTimeout(timeout);
+            window._gameCreationPromise = undefined;
+            set(state => ({
+              ...state,
+              hasJoinedGame: true,
+              isGameCreationInProgress: false
+            }));
+            resolve();
+          });
+    
+          console.log('Emitting createGame event:', { 
+            mode: '1v1', 
+            category,
+            username
+            // No gameId - let server generate it
+          });
+          
+          socket.emit('createGame', { 
+            mode: '1v1', 
+            category,
+            username
+            // No gameId - let server generate it
+          });
         });
-
-        console.log('Creating game with category:', category);
-        socket.emit('createGame', { 
-          mode: '1v1', 
-          category,
-          username,
-          gameId: state.gameId
-        });
-      });
+        
+        window._gameCreationPromise = createPromise;
+        return createPromise;
+        
+      } catch (error) {
+        window._gameCreationPromise = undefined;
+        set(state => ({ ...state, isGameCreationInProgress: false }));
+        throw error;
+      }
     },
 
     joinGame: async (gameId: string, username: string) => {
@@ -452,29 +627,6 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
         console.error('Error joining game:', error);
         throw error;
       }
-    },
-
-    setCategory: (category: Category) => {
-      const state = get();
-      const currentPlayer = state.getCurrentPlayer();
-      
-      if (!currentPlayer?.isHost) {
-        console.warn('Only host can change category');
-        return;
-      }
-
-      if (!socket.connected) {
-        console.error('Socket not connected');
-        return;
-      }
-
-      console.log('Setting category to:', category);
-      socket.emit('updateCategory', { 
-        gameId: state.gameId, 
-        category 
-      });
-
-      set(state => ({ ...state, category }));
     },
 
     setPlayerReady: () => {
@@ -620,6 +772,29 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
         isGameEnded: true,
         completionTime
       });
+    },
+
+    setCategory: (category: Category) => {
+      const state = get();
+      const currentPlayer = state.getCurrentPlayer();
+      
+      if (!currentPlayer?.isHost) {
+        console.warn('Only host can change category');
+        return;
+      }
+
+      if (!socket.connected) {
+        console.error('Socket not connected');
+        return;
+      }
+
+      console.log('Setting category to:', category);
+      socket.emit('updateCategory', { 
+        gameId: state.gameId, 
+        category 
+      });
+
+      set(state => ({ ...state, category }));
     }
   };
 });

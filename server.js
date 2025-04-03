@@ -375,6 +375,49 @@ io.on('connection', (socket) => {
     console.log(`Player ${username} joined game: ${gameId}`);
   });
 
+  // New leaveGame event handler for explicit navigation
+  socket.on('leaveGame', ({ gameId, isHost }) => {
+    console.log(`Player ${socket.id} leaving game: ${gameId}, isHost: ${isHost}`);
+    
+    const game = activeGames.get(gameId);
+    if (!game) return;
+    
+    // If host is leaving, notify other players and delete the game
+    if (isHost) {
+      // Notify other players the host left
+      io.to(gameId).emit('hostLeft', { 
+        message: 'The host has left the game. The game will be terminated.',
+        gameId 
+      });
+      
+      // Clean up the game
+      activeGames.delete(gameId);
+      console.log(`Game ${gameId} deleted - host left`);
+    } else {
+      // Regular player leaving - update player list
+      const playerIndex = game.players.findIndex(p => p.id === socket.id);
+      if (playerIndex !== -1) {
+        const player = game.players[playerIndex];
+        game.players.splice(playerIndex, 1);
+        game.scores.delete(socket.id);
+        
+        // Notify remaining players
+        io.to(gameId).emit('playerLeft', { 
+          playerId: socket.id,
+          playerName: player.username,
+          gameId,
+          remainingPlayers: game.players.length
+        });
+        
+        io.to(gameId).emit('gameUpdated', serializeGameState(game));
+        console.log(`Player ${socket.id} left game: ${gameId}`);
+      }
+    }
+    
+    // Remove player from socket room
+    socket.leave(gameId);
+  });
+
   socket.on('requestRematch', async ({ gameId, playerId }) => {
     const game = activeGames.get(gameId);
     if (!game) return;

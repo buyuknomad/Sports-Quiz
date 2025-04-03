@@ -1,8 +1,27 @@
-// Enhanced Solo Results Screen with accurate calculations and consistent formatting
-import React, { useEffect, useCallback } from 'react';
-import { Trophy, Home, RotateCw, Share2, Timer, Target, Award, CheckCircle, XCircle, Zap } from 'lucide-react';
+// Custom X (formerly Twitter) icon component
+const XLogo = ({ size = 20, className = "" }: { size?: number, className?: string }) => {
+  return (
+    <svg 
+      width={size} 
+      height={size} 
+      viewBox="0 0 24 24" 
+      className={className}
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M17.1907 4H19.9333L13.73 11.0533L20.8 20H15.0267L10.7027 14.4667L5.74933 20H3.00267L9.66667 12.4533L2.93333 4H8.84L12.7533 9.0467L17.1907 4ZM15.72 18.4667H17.0667L8.15733 5.46667H6.70933L15.72 18.4667Z" />
+    </svg>
+  );
+};// Enhanced Solo Results Screen with improved sharing functionality
+import React, { useEffect, useCallback, useState } from 'react';
+import { 
+  Trophy, Home, RotateCw, Share2, Timer, Target, Award, 
+  CheckCircle, XCircle, Zap, Copy, X, Facebook, 
+  MessageCircle, Link as LinkIcon
+} from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useGameStore } from '../store/gameStore';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { Category } from '../types';
 
 interface SoloResultsScreenProps {
@@ -26,6 +45,21 @@ const getPerformanceMessage = (accuracy: number) => {
   if (accuracy >= 50) return 'Good Effort! 👍';
   return 'Keep Practicing! 💫';
 };
+
+// Toast notification component
+const Toast = ({ message, onClose }: { message: string; onClose: () => void }) => (
+  <motion.div 
+    initial={{ opacity: 0, y: 50 }}
+    animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, y: 20 }}
+    className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50"
+  >
+    <span>{message}</span>
+    <button onClick={onClose} className="ml-2 text-white/80 hover:text-white">
+      <X size={16} />
+    </button>
+  </motion.div>
+);
 
 const AnswerDistributionChart = React.memo(({ correctAnswers, incorrectAnswers, totalQuestions }: {
   correctAnswers: number;
@@ -170,6 +204,123 @@ const StatsDisplay = React.memo(({
 
 StatsDisplay.displayName = 'StatsDisplay';
 
+// Share Modal Component
+const ShareModal = ({ 
+  shareText, 
+  shareUrl, 
+  onClose, 
+  onShowToast 
+}: { 
+  shareText: string; 
+  shareUrl: string;
+  onClose: () => void;
+  onShowToast: (message: string) => void;
+}) => {
+  const handleCopyText = async () => {
+    try {
+      await navigator.clipboard.writeText(shareText);
+      onShowToast('Text copied to clipboard!');
+    } catch (error) {
+      console.error('Failed to copy text:', error);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      onShowToast('Link copied to clipboard!');
+    } catch (error) {
+      console.error('Failed to copy link:', error);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
+      <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md animate-scaleIn">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-bold text-white">Share Your Results</h3>
+          <button 
+            onClick={onClose}
+            className="p-2 rounded-full hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </div>
+        
+        <div className="bg-gray-700/50 p-4 rounded-lg mb-6 relative group">
+          <p className="sport-share-text text-white">{shareText}</p>
+          <button 
+            onClick={handleCopyText}
+            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-gray-800/50 rounded-md hover:bg-gray-800"
+            title="Copy text"
+          >
+            <Copy size={14} className="text-gray-300" />
+          </button>
+        </div>
+        
+        <div className="mb-6">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-gray-300 text-sm">Challenge link:</span>
+            <button 
+              onClick={handleCopyLink}
+              className="flex items-center gap-1 px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm text-gray-300 transition-colors"
+            >
+              <Copy size={14} /> Copy
+            </button>
+          </div>
+          <div className="bg-gray-700/30 p-2 rounded text-green-400 text-sm font-mono truncate">
+            {shareUrl}
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-4 gap-3">
+          {/* X (formerly Twitter) */}
+          <button
+            onClick={() => window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`, '_blank')}
+            className="p-3 bg-black hover:bg-gray-900 rounded-lg text-white transition-colors flex items-center justify-center"
+            title="Share on X"
+          >
+            <XLogo size={20} />
+          </button>
+          
+          {/* Facebook */}
+          <button
+            onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&quote=${encodeURIComponent(shareText)}`, '_blank')}
+            className="p-3 bg-[#4267B2]/90 hover:bg-[#4267B2] rounded-lg text-white transition-colors flex items-center justify-center"
+            title="Share on Facebook"
+          >
+            <Facebook size={20} />
+          </button>
+          
+          {/* WhatsApp */}
+          <button
+            onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(shareText + ' ' + shareUrl)}`, '_blank')}
+            className="p-3 bg-[#25D366]/90 hover:bg-[#25D366] rounded-lg text-white transition-colors flex items-center justify-center"
+            title="Share on WhatsApp"
+          >
+            <MessageCircle size={20} />
+          </button>
+          
+          {/* Copy Link */}
+          <button
+            onClick={handleCopyLink}
+            className="p-3 bg-gray-600/90 hover:bg-gray-600 rounded-lg text-white transition-colors flex items-center justify-center"
+            title="Copy link"
+          >
+            <LinkIcon size={20} />
+          </button>
+        </div>
+        
+        <div className="mt-6 text-center">
+          <p className="text-sm text-gray-400">
+            Share with friends and challenge them to beat your score!
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ActionButtons = React.memo(({ onPlayAgain, onHome, onShare }: {
   onPlayAgain: () => void;
   onHome: () => void;
@@ -212,6 +363,10 @@ const SoloResultsScreen = React.memo<SoloResultsScreenProps>(({ onPlayAgain, onH
   const { players, category, questions, questionResponseTimes } = useGameStore();
   const player = players[0];
   const categoryEmoji = categoryEmojis[category];
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  
+  // No need for challenge ID as we're just linking to homepage
 
   const totalQuestions = questions.length;
   const score = player?.score || 0;
@@ -231,6 +386,16 @@ const SoloResultsScreen = React.memo<SoloResultsScreenProps>(({ onPlayAgain, onH
   const totalResponseTime = validResponseTimes.reduce((sum, time) => sum + time, 0);
 
   const performanceMessage = getPerformanceMessage(accuracy);
+  
+  // Fixed share content
+  const shareText = `I scored ${score}/${maxPossibleScore} points with ${accuracy.toFixed(1)}% accuracy in the ${category} quiz on SportIQ! Can you beat my score? #SportIQ`;
+  const shareUrl = `https://sportiq.games`;
+
+  // Toast handler
+  const showToast = (message: string) => {
+    setToast(message);
+    setTimeout(() => setToast(null), 3000);
+  };
 
   useEffect(() => {
     const duration = 3000;
@@ -266,31 +431,26 @@ const SoloResultsScreen = React.memo<SoloResultsScreenProps>(({ onPlayAgain, onH
   }, []);
 
   const handleShare = useCallback(async () => {
-    const shareText = `🎮 I scored ${score}/${maxPossibleScore} points with ${accuracy.toFixed(1)}% accuracy in the ${category} Sports Quiz! Can you beat my score? #SportsQuiz`;
-    
+    // Try to use the native share API first
     try {
-      if (navigator.share && navigator.canShare && navigator.canShare({ text: shareText })) {
+      if (navigator.share && navigator.canShare && navigator.canShare({ text: shareText, url: shareUrl })) {
         await navigator.share({
-          title: 'Sports Quiz Score',
+          title: 'SportIQ Challenge',
           text: shareText,
+          url: shareUrl
         });
-      } else {
-        await navigator.clipboard.writeText(shareText);
-        alert('Score copied to clipboard!');
+        
+        // Record successful share
+        showToast('Score shared successfully!');
+        return;
       }
     } catch (error) {
-      if (error instanceof Error) {
-        console.error('Share failed:', error.message);
-      }
-      try {
-        await navigator.clipboard.writeText(shareText);
-        alert('Score copied to clipboard!');
-      } catch (clipboardError) {
-        console.error('Clipboard failed:', clipboardError);
-        alert('Unable to share score. Please try again.');
-      }
+      console.error('Native share failed:', error);
     }
-  }, [score, maxPossibleScore, accuracy, category]);
+    
+    // Fall back to showing the share modal
+    setShowShareModal(true);
+  }, [shareText, shareUrl]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-b from-gray-900 to-gray-800">
@@ -338,6 +498,57 @@ const SoloResultsScreen = React.memo<SoloResultsScreenProps>(({ onPlayAgain, onH
           </p>
         </div>
       </div>
+      
+      {/* Share Modal */}
+      {showShareModal && (
+        <ShareModal 
+          shareText={shareText}
+          shareUrl={shareUrl}
+          onClose={() => setShowShareModal(false)}
+          onShowToast={showToast}
+        />
+      )}
+      
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toast && (
+          <Toast 
+            message={toast} 
+            onClose={() => setToast(null)} 
+          />
+        )}
+      </AnimatePresence>
+      
+      {/* Add these global styles to your CSS or create animation keyframes */}
+      <style jsx>{`
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        
+        @keyframes scaleIn {
+          from { transform: scale(0.95); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
+        }
+        
+        .animate-fadeIn {
+          animation: fadeIn 0.2s ease-out;
+        }
+        
+        .animate-scaleIn {
+          animation: scaleIn 0.3s ease-out;
+        }
+        
+        /* Almarena-like font styling */
+        .sport-share-text {
+          font-family: "Almarena Neue", "Montserrat", "Segoe UI", sans-serif;
+          font-weight: 700;
+          letter-spacing: -0.02em;
+          font-size: 1.1rem;
+          line-height: 1.4;
+          text-transform: none;
+        }
+      `}</style>
     </div>
   );
 });

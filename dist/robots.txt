@@ -1,0 +1,26 @@
+# robots.txt for SportIQ (https://sportiq.games)
+User-agent: *
+Host: sportiq.games
+
+# Disallow gameplay areas (these should be client-side only)
+Disallow: /game/
+Disallow: /invite/
+Disallow: /lobby/
+Disallow: /results/
+
+# Disallow admin areas if they exist
+Disallow: /admin/
+Disallow: /manage/
+Disallow: /dashboard/
+
+# Disallow API endpoints
+Disallow: /api/
+Disallow: /socket.io/
+
+# Disallow any user-specific content
+Disallow: /profile/
+Disallow: /account/
+Disallow: /user/
+
+# Sitemap location
+Sitemap: https://sportiq.games/sitemap.xml

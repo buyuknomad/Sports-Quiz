@@ -1,8 +1,8 @@
-// Main App component with improved navigation
+// Main App component with improved navigation and multiplayer transition fix
 import React, { useState, useEffect } from 'react';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { Home } from './components/Home';
-import { WelcomeScreen } from './components/WelcomeScreen';
+import Home from './components/Home';
+import WelcomeScreen from './components/WelcomeScreen';
 import { CategorySelect } from './components/CategorySelect';
 import { MultiplayerLobby } from './components/MultiplayerLobby';
 import QuizGame from './components/QuizGame';
@@ -14,8 +14,10 @@ import { useOneVsOneStore } from './store/oneVsOneStore';
 import type { GameMode, Category } from './types';
 
 function App() {
-  const [gameState, setGameState] = useState<'home' | 'welcome' | 'category' | 'invite' | 'lobby' | 'game' | 'results'>('home');
+  const [gameState, setGameState] = useState<'home' | 'welcome' | 'category' | 'invite' | 'lobby' | 'game' | 'results' | 'loading'>('home');
   const [currentMode, setCurrentMode] = useState<GameMode>('solo');
+  const [categorySelectionInProgress, setCategorySelectionInProgress] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   
   const { 
     initializeGame: initializeSoloGame, 
@@ -59,7 +61,7 @@ function App() {
       } else {
         reset1v1Game();
         await initialize1v1Game();
-        setGameState('invite');
+        setGameState('category'); // Go to category selection first for 1v1 mode
       }
     } catch (error) {
       console.error('Error starting game:', error);
@@ -82,8 +84,8 @@ function App() {
         
         // Check if user is connected to socket
         if (socket && socket.connected) {
-          // Direct to invite page where user can create or join a game
-          setGameState('invite');
+          // Direct to category page first
+          setGameState('category');
         } else {
           // If socket connection failed, redirect to welcome screen
           console.log('Socket connection not established, redirecting to welcome screen');
@@ -98,67 +100,71 @@ function App() {
   };
 
   const handleInviteSuccess = () => {
-    if (multiPlayers.length >= 2) {
-      console.log('Player appears to have joined an existing game with multiple players');
-      
-      const currentPlayer = getCurrentPlayer();
-      
-      if (currentPlayer && !currentPlayer.isHost) {
-        console.log('Current player is not host, directing to lobby');
-        setGameState('lobby');
-        return;
-      }
-    }
-    
-    if (hasJoinedGame) {
-      const currentPlayer = getCurrentPlayer();
-      const isHost = currentPlayer?.isHost;
-      
-      if (!isHost) {
-        console.log('Player has joined an existing game as non-host, directing to lobby');
-        setGameState('lobby');
-        return;
-      }
-    }
-    
-    console.log('Player is starting a new game or is the host, directing to category selection');
-    setGameState('category');
-  };
-
+  // User has clicked "Continue to Lobby" on InviteSystem
+  // The game is already created in the InviteSystem component
+  setGameState('lobby');
+};
   const handleCategorySelect = async (category: Category) => {
-    if (currentMode === 'solo') {
-      try {
-        await setSoloCategory(category);
-        setGameState('game');
-      } catch (error) {
-        console.error('Error setting solo category:', error);
-      }
-    } else {
-      try {
-        if (hasJoinedGame) {
-          set1v1Category(category);
-        } else {
-          await create1v1Game(category);
+    // Add a debounce mechanism with component state
+    if (categorySelectionInProgress) {
+      console.log('Category selection already in progress, ignoring');
+      return;
+    }
+    
+    try {
+      // Set the debounce flag
+      setCategorySelectionInProgress(true);
+      
+      console.log(`App handling category selection: ${category} for mode: ${currentMode}`);
+      
+      if (currentMode === 'solo') {
+        try {
+          // Show loading state immediately to prevent any other actions
+          setGameState('loading');
+          
+          // Then set category, which will load questions
+          await setSoloCategory(category);
+          
+          // The gameState will be updated to 'game' by the useEffect when isGameStarted becomes true
+        } catch (error) {
+          console.error('Error setting solo category:', error);
+          // If there's an error, go back to category selection
+          setGameState('category');
         }
-        setGameState('lobby');
-      } catch (error) {
-        console.error('Error creating/updating 1v1 game:', error);
+      } else {
+        // 1v1 mode - store selected category and go to invite screen
+        setSelectedCategory(category);
+        
+        if (hasJoinedGame) {
+          // Already joined a game (went back from lobby)
+          console.log('Already joined game, updating category');
+          set1v1Category(category);
+          setGameState('lobby');
+        } else {
+          // New game flow - go to invite system
+          console.log('Selected category for new game:', category);
+          setGameState('invite');
+        }
       }
+    } finally {
+      // Clear the debounce flag after a delay
+      setTimeout(() => {
+        setCategorySelectionInProgress(false);
+      }, 1000);
     }
   };
 
   const handleReturnToModeSelect = () => {
     resetSoloGame();
     reset1v1Game();
+    setSelectedCategory(null);
     setGameState('welcome');
   };
 
   const handleBackToCategory = () => {
     if (currentMode === 'solo') {
-      resetSoloGame();
-      initializeSoloGame(currentMode);
-      const username = localStorage.getItem('username') || 'Guest';
-      addPlayer(username);
+      // Instead of initializing a new game, just change the state
+      // Don't reset or initialize the game here
       setGameState('category');
     } else {
       // For multiplayer, going back to category is only possible for the host
@@ -172,14 +178,42 @@ function App() {
     }
   };
 
+  // Listen for the custom game started event
   useEffect(() => {
-    if ((currentMode === 'solo' && isSoloGameStarted && !isSoloGameEnded) ||
-        (currentMode === '1v1' && is1v1GameStarted && !is1v1GameEnded)) {
-      console.log('Game started, transitioning to game screen');
+    const handleGameStarted = () => {
+      console.log('Custom game started event received, forcing transition to game');
+      if (gameState === 'lobby') {
+        setGameState('game');
+      }
+    };
+
+    window.addEventListener('sportiq:gameStarted', handleGameStarted);
+    
+    return () => {
+      window.removeEventListener('sportiq:gameStarted', handleGameStarted);
+    };
+  }, [gameState]);
+
+  // More targeted effect for loading -> game transition
+  useEffect(() => {
+    if (gameState === 'loading' && (
+        (currentMode === 'solo' && isSoloGameStarted) ||
+        (currentMode === '1v1' && is1v1GameStarted)
+      )) {
+      console.log('Game started while in loading screen, transitioning to game screen');
       setGameState('game');
     }
-  }, [isSoloGameStarted, isSoloGameEnded, is1v1GameStarted, is1v1GameEnded, currentMode]);
+  }, [isSoloGameStarted, is1v1GameStarted, currentMode, gameState]);
+  
+  // Specific effect for lobby -> game transition
+  useEffect(() => {
+    if (gameState === 'lobby' && currentMode === '1v1' && is1v1GameStarted && !is1v1GameEnded) {
+      console.log('1v1 game started while in lobby state, transitioning to game screen');
+      setGameState('game');
+    }
+  }, [is1v1GameStarted, is1v1GameEnded, currentMode, gameState]);
 
+  // Keep this effect for other state transitions like results
   useEffect(() => {
     if (currentMode === 'solo' && isSoloGameEnded) {
       console.log('Solo game ended, transitioning to results screen');
@@ -234,7 +268,9 @@ function App() {
       is1v1GameEnded,
       soloPlayersCount: soloPlayers.length,
       multiPlayersCount: multiPlayers.length,
-      hasJoinedGame
+      hasJoinedGame,
+      categorySelectionInProgress,
+      selectedCategory
     });
   }, [
     gameState, 
@@ -245,7 +281,9 @@ function App() {
     is1v1GameEnded, 
     soloPlayers.length, 
     multiPlayers.length,
-    hasJoinedGame
+    hasJoinedGame,
+    categorySelectionInProgress,
+    selectedCategory
   ]);
 
   return (
@@ -258,21 +296,39 @@ function App() {
           <WelcomeScreen onStart={handleStart} />
         )}
         {gameState === 'invite' && (
-          <InviteSystem onJoinSuccess={handleInviteSuccess} />
+          <InviteSystem 
+            onJoinSuccess={handleInviteSuccess} 
+            onBackToMode={handleReturnToModeSelect}
+            selectedCategory={selectedCategory} // Pass the selected category
+          />
         )}
         {gameState === 'category' && (
           <CategorySelect 
-            onCategorySelected={handleCategorySelect}
             onSelect={handleCategorySelect}
             mode={currentMode}
             onBack={handleReturnToModeSelect}
           />
         )}
-        {gameState === 'lobby' && currentMode === '1v1' && (
-          <MultiplayerLobby />
+        {gameState === 'loading' && (
+          <div className="min-h-screen bg-background p-4 flex items-center justify-center">
+            <div className="text-white text-center p-8">
+              <h2 className="text-2xl font-bold mb-4">Loading Quiz...</h2>
+              <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div className="h-2 bg-green-500 rounded-full animate-pulse w-1/2"></div>
+              </div>
+            </div>
+          </div>
         )}
+        {gameState === 'lobby' && currentMode === '1v1' && (
+          <MultiplayerLobby 
+            onBackToCategory={handleBackToCategory}
+            onBackToMode={handleReturnToModeSelect}
+          />
+        )}
+        {/* Use a stable key to prevent unnecessary remounting of QuizGame */}
         {gameState === 'game' && (
           <QuizGame 
+            key={`game-${currentMode}-${soloPlayers[0]?.id || 'solo'}`}
             mode={currentMode} 
             onBackToCategory={handleBackToCategory}
             onBackToMode={handleReturnToModeSelect}
