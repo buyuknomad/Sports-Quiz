@@ -1,5 +1,8 @@
 // Types for the Sports Quiz App with correct answers tracking
-export type GameMode = 'solo' | '1v1' | 'multiplayer';
+
+
+// Update GameMode to include the new options
+export type GameMode = 'solo' | '1v1' | 'create' | 'join';
 export type Category = 'football' | 'basketball' | 'tennis' | 'olympics' | 'mixed';
 
 export interface ChatMessage {

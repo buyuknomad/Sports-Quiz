@@ -1,6 +1,6 @@
-// Invite system component with automatic code generation
+// Invite system component with simplified navigation
 import React, { useState, useEffect } from 'react';
-import { Copy, UserPlus, Users, AlertCircle, ChevronRight, Home } from 'lucide-react';
+import { Copy, UserPlus, AlertCircle, ChevronRight, Home, ArrowLeft } from 'lucide-react';
 import { useOneVsOneStore } from '../store/oneVsOneStore';
 import { NavigationButton, ConfirmationDialog } from './navigation';
 import { NAVIGATION_LABELS, CONFIRMATION_MESSAGES } from '../constants/navigation';
@@ -17,7 +17,17 @@ export const InviteSystem: React.FC<InviteSystemProps> = ({
   onBackToMode,
   selectedCategory = 'mixed'
 }) => {
-  const [showJoin, setShowJoin] = useState(false);
+  // Initialize show join based on localStorage
+  const [showJoin, setShowJoin] = useState(() => {
+    const shouldShowJoin = localStorage.getItem('showJoinUI') === 'true';
+    if (shouldShowJoin) {
+      // Clear the flag immediately
+      localStorage.removeItem('showJoinUI');
+      return true;
+    }
+    return false;
+  });
+  
   const [joinCode, setJoinCode] = useState('');
   const [error, setError] = useState('');
   const [copySuccess, setCopySuccess] = useState(false);
@@ -31,22 +41,24 @@ export const InviteSystem: React.FC<InviteSystemProps> = ({
     getCurrentPlayer, 
     hasJoinedGame,
     resetGame,
-    createGame  // Add createGame to create the game when component mounts
+    createGame
   } = useOneVsOneStore();
   
   const username = localStorage.getItem('username') || '';
+  const currentPlayer = getCurrentPlayer();
+  const isHost = currentPlayer?.isHost;
   
   // Add state for confirmation dialog
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
-    type: 'mode' | null;
+    type: 'mode' | 'category' | null;
   }>({ isOpen: false, type: null });
 
   // Create game with selected category on component mount
   useEffect(() => {
     const initializeGame = async () => {
-      // Only create a new game if we don't already have one
-      if (!hasJoinedGame && !isCreatingGame && !gameId && selectedCategory) {
+      // Only create a new game if showing create UI and we don't already have one
+      if (!showJoin && !hasJoinedGame && !isCreatingGame && !gameId && selectedCategory) {
         try {
           setIsCreatingGame(true);
           console.log('Automatically creating game with category:', selectedCategory);
@@ -60,11 +72,10 @@ export const InviteSystem: React.FC<InviteSystemProps> = ({
     };
 
     initializeGame();
-  }, [hasJoinedGame, gameId, selectedCategory, createGame, isCreatingGame]);
+  }, [hasJoinedGame, gameId, selectedCategory, createGame, isCreatingGame, showJoin]);
 
   // Proceed to lobby when user clicks Continue
   const handleContinueToLobby = () => {
-    // We already created the game, so just proceed to lobby
     onJoinSuccess();
   };
 
@@ -137,12 +148,24 @@ export const InviteSystem: React.FC<InviteSystemProps> = ({
     setConfirmDialog({ isOpen: true, type: 'mode' });
   };
   
+  // Handle back to category selection (for hosts)
+  const handleBackToCategory = () => {
+    // Signal to App.tsx that we want to go to category selection
+    localStorage.setItem('goToCategory', 'true');
+    
+    // Clean up any game creation in progress
+    resetGame();
+    
+    // Navigate back via the provided callback
+    if (onBackToMode) onBackToMode();
+  };
+  
   // Handle confirmation dialog
   const handleConfirmNavigation = () => {
     // Clean up any game creation in progress
     resetGame();
     
-    // Navigate back to mode selection
+    // Navigate based on dialog type (only modal dialog is for mode selection now)
     if (onBackToMode) onBackToMode();
     
     // Close the dialog
@@ -175,7 +198,7 @@ export const InviteSystem: React.FC<InviteSystemProps> = ({
         cancelText="Stay Here"
       />
     
-      {/* Back to Mode Selection Button */}
+      {/* Back to Mode Selection Button (fixed position) */}
       <div className="fixed bottom-6 left-6 z-50">
         {onBackToMode && (
           <NavigationButton
@@ -192,7 +215,7 @@ export const InviteSystem: React.FC<InviteSystemProps> = ({
         </h1>
         
         {/* Show selected category */}
-        {selectedCategory && (
+        {selectedCategory && !showJoin && (
           <div className="text-center mb-6">
             <span className="px-4 py-2 bg-gray-800 rounded-full text-blue-400 text-sm inline-block">
               {`Category: ${selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)}`}
@@ -237,18 +260,22 @@ export const InviteSystem: React.FC<InviteSystemProps> = ({
                   </div>
                 </div>
 
+                {/* Simplified button layout for Create Game view */}
                 <div className="flex justify-between items-center">
                   <button
-                    onClick={() => setShowJoin(true)}
-                    className="text-gray-400 hover:text-white transition-colors text-sm"
+                    onClick={handleBackToCategory}
+                    className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white 
+                             transition-colors flex items-center gap-2"
                   >
-                    Want to join instead?
+                    <ArrowLeft size={18} />
+                    Change Category
                   </button>
+                  
                   <button
                     onClick={handleContinueToLobby}
                     disabled={!gameId}
                     className={`px-6 py-3 rounded-lg bg-green-600 hover:bg-green-700 text-white 
-                            transition-colors flex items-center gap-2 group ${!gameId ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              transition-colors flex items-center gap-2 group ${!gameId ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     Continue to Lobby
                     <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
@@ -284,16 +311,8 @@ export const InviteSystem: React.FC<InviteSystemProps> = ({
               )}
             </div>
 
-            <div className="flex justify-between items-center">
-              <button
-                onClick={() => {
-                  setShowJoin(false);
-                  setError('');
-                }}
-                className="text-gray-400 hover:text-white transition-colors text-sm"
-              >
-                Create a game instead?
-              </button>
+            {/* Simplified button layout for Join Game view */}
+            <div className="flex justify-end items-center">
               <button
                 onClick={handleJoinGame}
                 className="px-6 py-3 rounded-lg bg-green-600 hover:bg-green-700 text-white 

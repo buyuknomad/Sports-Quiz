@@ -12,6 +12,7 @@ import { InviteSystem } from './components/InviteSystem';
 import { useGameStore } from './store/gameStore';
 import { useOneVsOneStore } from './store/oneVsOneStore';
 import type { GameMode, Category } from './types';
+import { clearQuestionCache } from './lib/supabase-client';
 
 function App() {
   const [gameState, setGameState] = useState<'home' | 'welcome' | 'category' | 'invite' | 'lobby' | 'game' | 'results' | 'loading'>('home');
@@ -51,17 +52,27 @@ function App() {
 
   const handleStart = async (username: string, selectedMode: GameMode) => {
     try {
-      setCurrentMode(selectedMode);
+      // Set currentMode to either 'solo' or '1v1' for the game stores
+      // Both 'create' and 'join' use the '1v1' game mode
+      setCurrentMode(selectedMode === 'solo' ? 'solo' : '1v1');
       
       if (selectedMode === 'solo') {
         resetSoloGame();
-        await initializeSoloGame(selectedMode);
+        await initializeSoloGame('solo');
         addPlayer(username);
         setGameState('category');
-      } else {
+      } else if (selectedMode === 'create') {
+        // Host path: Create a new 1v1 game 
         reset1v1Game();
         await initialize1v1Game();
-        setGameState('category'); // Go to category selection first for 1v1 mode
+        setGameState('category'); // Go to category selection first
+      } else if (selectedMode === 'join') {
+        // Guest path: Skip category, go straight to invite system in join mode
+        reset1v1Game();
+        await initialize1v1Game();
+        // Set a flag to show the join UI directly
+        localStorage.setItem('showJoinUI', 'true');
+        setGameState('invite');
       }
     } catch (error) {
       console.error('Error starting game:', error);
@@ -70,6 +81,9 @@ function App() {
 
   const handlePlayAgain = async () => {
     const username = localStorage.getItem('username') || 'Guest';
+    
+    // Clear question cache to get fresh questions on restart
+    clearQuestionCache();
     
     if (currentMode === 'solo') {
       resetSoloGame();
@@ -100,10 +114,11 @@ function App() {
   };
 
   const handleInviteSuccess = () => {
-  // User has clicked "Continue to Lobby" on InviteSystem
-  // The game is already created in the InviteSystem component
-  setGameState('lobby');
-};
+    // User has clicked "Continue to Lobby" on InviteSystem
+    // The game is already created in the InviteSystem component
+    setGameState('lobby');
+  };
+
   const handleCategorySelect = async (category: Category) => {
     // Add a debounce mechanism with component state
     if (categorySelectionInProgress) {
@@ -155,10 +170,25 @@ function App() {
   };
 
   const handleReturnToModeSelect = () => {
+    // Check if we're being redirected to category selection
+    const goToCategory = localStorage.getItem('goToCategory') === 'true';
+    
+    // Clean up the stored states
+    localStorage.removeItem('goToCategory');
+    
+    // Reset game states
     resetSoloGame();
     reset1v1Game();
     setSelectedCategory(null);
-    setGameState('welcome');
+    
+    // Redirect based on context
+    if (goToCategory) {
+      console.log('Redirecting to category selection from invite screen');
+      setGameState('category');
+    } else {
+      // Otherwise go to welcome screen
+      setGameState('welcome');
+    }
   };
 
   const handleBackToCategory = () => {
@@ -270,7 +300,9 @@ function App() {
       multiPlayersCount: multiPlayers.length,
       hasJoinedGame,
       categorySelectionInProgress,
-      selectedCategory
+      selectedCategory,
+      isHost: getCurrentPlayer()?.isHost,
+      goToCategory: localStorage.getItem('goToCategory')
     });
   }, [
     gameState, 
@@ -283,7 +315,8 @@ function App() {
     multiPlayers.length,
     hasJoinedGame,
     categorySelectionInProgress,
-    selectedCategory
+    selectedCategory,
+    getCurrentPlayer
   ]);
 
   return (

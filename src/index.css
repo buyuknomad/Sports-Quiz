@@ -76,3 +76,9 @@ body {
   transform: translateY(-20px);
   transition: opacity 300ms, transform 300ms;
 }
+
+@media (min-width: 768px) {
+  .mode-selection-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}

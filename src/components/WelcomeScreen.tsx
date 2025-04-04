@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { Trophy, Swords, Info, HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Trophy, Swords, UserPlus, Info, HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// Define GameMode type directly in component
-type GameMode = 'solo' | '1v1' | 'multiplayer';
+// Define expanded GameMode type with the new join option
+type GameMode = 'solo' | 'create' | 'join';
 
 interface WelcomeScreenProps {
   onStart: (username: string, mode: GameMode) => void;
 }
 
+// Animation variants
 const container = {
   hidden: { opacity: 0 },
   show: {
@@ -47,9 +48,8 @@ const iconAnimation = {
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
   const username = localStorage.getItem('username') || '';
   const [selectedMode, setSelectedMode] = useState<GameMode | null>(null);
-  const [showSoloDetails, setShowSoloDetails] = useState(false);
-  const [show1v1Details, setShow1v1Details] = useState(false);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [activeInfoPanel, setActiveInfoPanel] = useState<GameMode | null>(null);
   
   const handleModeSelect = (mode: GameMode) => {
     setSelectedMode(mode);
@@ -64,9 +64,49 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
     }, 300);
   };
   
+  // Handle Learn More clicks
+  const handleLearnMore = (mode: GameMode, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent card click
+    setActiveInfoPanel(activeInfoPanel === mode ? null : mode);
+  };
+  
+  // Content for each mode's info panel
+  const modeInfo = {
+    solo: {
+      title: "Solo Play",
+      description: "Test your sports knowledge at your own pace. Answer 10 questions across your chosen category and earn points for correct answers. The faster you answer, the more bonus points you receive!",
+      perfectFor: "Practice, learning new sports facts, and improving your response time.",
+      color: "text-green-400",
+      bgColor: "bg-green-600/10",
+      btnBgColor: "bg-green-500/20",
+      btnHoverColor: "hover:bg-green-500/30",
+      borderColor: "border-green-500/30" 
+    },
+    create: {
+      title: "Create 1v1 Game",
+      description: "Be the host! Create a game, choose the category, and get a shareable code to invite a friend. Challenge them to see who has better sports knowledge.",
+      perfectFor: "Challenging friends, picking your favorite sports category, and proving you're the champion.",
+      color: "text-blue-400",
+      bgColor: "bg-blue-600/10",
+      btnBgColor: "bg-blue-500/20",
+      btnHoverColor: "hover:bg-blue-500/30",
+      borderColor: "border-blue-500/30"
+    },
+    join: {
+      title: "Join 1v1 Game",
+      description: "Got an invite code? Use it to quickly join a friend's game and compete in real-time. The host has already selected the category - just enter the code and play!",
+      perfectFor: "Accepting challenges, quick play, and jumping straight into competition.",
+      color: "text-purple-400",
+      bgColor: "bg-purple-600/10",
+      btnBgColor: "bg-purple-500/20",
+      btnHoverColor: "hover:bg-purple-500/30",
+      borderColor: "border-purple-500/30"
+    }
+  };
+  
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-b from-[#0c1220] to-[#1a1a2e]">
-      {/* Game title and logo */}
+      {/* Header content remains the same */}
       <motion.div
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -114,7 +154,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
         </motion.div>
       </motion.div>
       
-      {/* How It Works Button */}
+      {/* How It Works Button - unchanged */}
       <motion.button
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -129,7 +169,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
         {showHowItWorks ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
       </motion.button>
       
-      {/* How It Works Panel */}
+      {/* How It Works Panel - unchanged */}
       <AnimatePresence>
         {showHowItWorks && (
           <motion.div
@@ -142,178 +182,215 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
             <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4">
               <h3 className="text-white font-bold mb-2">How To Play</h3>
               <ol className="space-y-2 list-decimal list-inside text-sm text-gray-300 mb-4">
-                <li>Select your preferred game mode (Solo or 1v1)</li>
-                <li>Choose a sports category that interests you</li>
+                <li>Select your preferred game mode (Solo, Create Game, or Join Game)</li>
+                <li>Choose a sports category that interests you (when creating a game)</li>
                 <li>Answer 10 questions as quickly and accurately as possible</li>
                 <li>Earn 10 points for each correct answer plus time bonuses</li>
                 <li>View your performance stats and challenge others to beat your score!</li>
               </ol>
               
               <p className="text-xs text-gray-400 mt-2">
-                Both game modes feature the same categories: Football ⚽, Basketball 🏀, Tennis 🎾, Olympics 🏅, and Mixed Sports 🎯
+                All game modes feature the same categories: Football ⚽, Basketball 🏀, Tennis 🎾, Olympics 🏅, and Mixed Sports 🎯
               </p>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
       
-      {/* Game Mode Cards - Side by Side */}
+      {/* Game Mode Cards - with improved Learn More buttons */}
       <motion.div 
         variants={container}
         initial="hidden"
         animate="show"
-        className="w-full max-w-lg grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6"
+        className="w-full max-w-4xl grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-4"
       >
-        {/* Solo Mode Card with Expandable Details */}
+        {/* Solo Mode Card */}
         <motion.div
           variants={item}
-          className="overflow-hidden"
+          className="relative bg-gray-800 rounded-xl p-6 pb-14 overflow-hidden"
         >
-          <motion.button
-            whileHover={{ scale: 1.02 }}
+          <motion.div
+            className="absolute inset-0 bg-gradient-to-br from-green-600 to-green-400 opacity-0 hover:opacity-10 transition-opacity duration-300"
+          />
+          
+          {/* Card Content */}
+          <motion.div
+            whileHover={{ scale: 1.02, y: -5 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => handleModeSelect('solo')}
-            className={`w-full group relative bg-gray-800 rounded-t-xl ${!showSoloDetails ? 'rounded-b-xl' : ''} p-6 overflow-hidden text-center ${selectedMode === 'solo' ? 'ring-2 ring-green-400' : ''}`}
+            className={`flex flex-col items-center gap-3 relative z-10 ${selectedMode === 'solo' ? 'ring-2 ring-green-400 rounded-xl p-2' : ''}`}
           >
             <motion.div
-              className="absolute inset-0 bg-gradient-to-br from-green-600 to-green-400 opacity-0 group-hover:opacity-10 transition-opacity duration-300"
-            />
+              variants={iconAnimation}
+              whileHover="hover"
+              className="w-16 h-16 flex items-center justify-center bg-gradient-to-br from-green-600 to-green-400 rounded-full mb-2"
+            >
+              <Trophy size={32} className="text-white" />
+            </motion.div>
             
-            <div className="flex flex-col items-center gap-3 sm:gap-4 relative z-10">
-              <motion.div
-                variants={iconAnimation}
-                whileHover="hover"
-                className="w-16 h-16 flex items-center justify-center bg-gradient-to-br from-green-600 to-green-400 rounded-full mb-2"
+            <motion.h2 
+              className="text-xl font-bold text-white flex items-center gap-2"
+              whileHover={{ scale: 1.05 }}
+            >
+              Solo Play
+              <motion.span
+                animate={{ y: [0, -5, 0] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+                className="text-2xl"
               >
-                <Trophy size={32} className="text-white" />
-              </motion.div>
-              
-              <motion.h2 
-                className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2"
-                whileHover={{ scale: 1.05 }}
-              >
-                Solo Play
-                <motion.span
-                  animate={{ y: [0, -5, 0] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                  className="text-2xl sm:text-3xl"
-                >
-                  🏀
-                </motion.span>
-              </motion.h2>
-              <p className="text-gray-400 text-sm">
-                Practice at your own pace
-              </p>
-            </div>
-          </motion.button>
+                🏀
+              </motion.span>
+            </motion.h2>
+            <p className="text-gray-400 text-sm mb-2">
+              Practice at your own pace
+            </p>
+          </motion.div>
           
-          {/* Toggle Details Button */}
-          <button 
-            onClick={() => setShowSoloDetails(!showSoloDetails)}
-            className={`w-full flex items-center justify-center p-2 bg-gray-700/60 ${showSoloDetails ? 'rounded-none border-b border-green-400/30' : 'rounded-b-xl'} text-sm text-green-400 hover:bg-gray-700/80 transition-colors`}
+          {/* Improved Learn More Button - Absolute positioned at bottom */}
+          <motion.button 
+            onClick={(e) => handleLearnMore('solo', e)}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className={`absolute bottom-3 left-0 right-0 mx-auto w-3/4 py-2 px-4 rounded-lg ${modeInfo['solo'].btnBgColor} ${modeInfo['solo'].btnHoverColor} ${modeInfo['solo'].color} font-medium text-sm flex items-center justify-center gap-2 border ${modeInfo['solo'].borderColor} transition-colors`}
           >
-            <span className="mr-1">{showSoloDetails ? 'Hide Details' : 'Learn More'}</span>
-            {showSoloDetails ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          </button>
-          
-          {/* Expandable Details */}
-          <AnimatePresence>
-            {showSoloDetails && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="bg-gray-800/80 rounded-b-xl border-t border-gray-700/30 overflow-hidden"
-              >
-                <div className="p-4 text-left">
-                  <p className="text-gray-300 text-sm mb-3">
-                    Test your sports knowledge at your own pace. Answer 10 questions across your chosen category and earn points for correct answers. The faster you answer, the more bonus points you receive!
-                  </p>
-                  <div className="text-xs text-gray-400">
-                    <span className="text-green-400 font-medium">Perfect for:</span> Practice, learning new sports facts, and improving your response time.
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+            <Info size={16} />
+            {activeInfoPanel === 'solo' ? 'Hide Details' : 'Learn More'}
+          </motion.button>
         </motion.div>
 
-        {/* 1v1 Mode Card with Expandable Details */}
+        {/* Create 1v1 Game Card */}
         <motion.div
           variants={item}
-          className="overflow-hidden"
+          className="relative bg-gray-800 rounded-xl p-6 pb-14 overflow-hidden"
         >
-          <motion.button
-            whileHover={{ scale: 1.02 }}
+          <motion.div
+            className="absolute inset-0 bg-gradient-to-br from-blue-600 to-blue-400 opacity-0 hover:opacity-10 transition-opacity duration-300"
+          />
+          
+          {/* Card Content */}
+          <motion.div
+            whileHover={{ scale: 1.02, y: -5 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => handleModeSelect('1v1')}
-            className={`w-full group relative bg-gray-800 rounded-t-xl ${!show1v1Details ? 'rounded-b-xl' : ''} p-6 overflow-hidden text-center ${selectedMode === '1v1' ? 'ring-2 ring-blue-400' : ''}`}
+            onClick={() => handleModeSelect('create')}
+            className={`flex flex-col items-center gap-3 relative z-10 ${selectedMode === 'create' ? 'ring-2 ring-blue-400 rounded-xl p-2' : ''}`}
           >
             <motion.div
-              className="absolute inset-0 bg-gradient-to-br from-blue-600 to-blue-400 opacity-0 group-hover:opacity-10 transition-opacity duration-300"
-            />
+              variants={iconAnimation}
+              whileHover="hover"
+              className="w-16 h-16 flex items-center justify-center bg-gradient-to-br from-blue-600 to-blue-400 rounded-full mb-2"
+            >
+              <Swords size={32} className="text-white" />
+            </motion.div>
             
-            <div className="flex flex-col items-center gap-3 sm:gap-4 relative z-10">
-              <motion.div
-                variants={iconAnimation}
-                whileHover="hover"
-                className="w-16 h-16 flex items-center justify-center bg-gradient-to-br from-blue-600 to-blue-400 rounded-full mb-2"
+            <motion.h2 
+              className="text-xl font-bold text-white flex items-center gap-2"
+              whileHover={{ scale: 1.05 }}
+            >
+              Create 1v1 Game
+              <motion.span
+                animate={{ y: [0, -5, 0] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+                className="text-2xl"
               >
-                <Swords size={32} className="text-white" />
-              </motion.div>
-              
-              <motion.h2 
-                className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2"
-                whileHover={{ scale: 1.05 }}
-              >
-                1v1 Mode
-                <motion.span
-                  animate={{ y: [0, -5, 0] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                  className="text-2xl sm:text-3xl"
-                >
-                  ⚔️
-                </motion.span>
-              </motion.h2>
-              <p className="text-gray-400 text-sm">
-                Challenge a friend in real-time
-              </p>
-            </div>
-          </motion.button>
+                ⚔️
+              </motion.span>
+            </motion.h2>
+            <p className="text-gray-400 text-sm mb-2">
+              Host a game & invite a friend
+            </p>
+          </motion.div>
           
-          {/* Toggle Details Button */}
-          <button 
-            onClick={() => setShow1v1Details(!show1v1Details)}
-            className={`w-full flex items-center justify-center p-2 bg-gray-700/60 ${show1v1Details ? 'rounded-none border-b border-blue-400/30' : 'rounded-b-xl'} text-sm text-blue-400 hover:bg-gray-700/80 transition-colors`}
+          {/* Improved Learn More Button */}
+          <motion.button 
+            onClick={(e) => handleLearnMore('create', e)}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className={`absolute bottom-3 left-0 right-0 mx-auto w-3/4 py-2 px-4 rounded-lg ${modeInfo['create'].btnBgColor} ${modeInfo['create'].btnHoverColor} ${modeInfo['create'].color} font-medium text-sm flex items-center justify-center gap-2 border ${modeInfo['create'].borderColor} transition-colors`}
           >
-            <span className="mr-1">{show1v1Details ? 'Hide Details' : 'Learn More'}</span>
-            {show1v1Details ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          </button>
+            <Info size={16} />
+            {activeInfoPanel === 'create' ? 'Hide Details' : 'Learn More'}
+          </motion.button>
+        </motion.div>
+
+        {/* Join 1v1 Game Card */}
+        <motion.div
+          variants={item}
+          className="relative bg-gray-800 rounded-xl p-6 pb-14 overflow-hidden"
+        >
+          <motion.div
+            className="absolute inset-0 bg-gradient-to-br from-purple-600 to-purple-400 opacity-0 hover:opacity-10 transition-opacity duration-300"
+          />
           
-          {/* Expandable Details */}
-          <AnimatePresence>
-            {show1v1Details && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="bg-gray-800/80 rounded-b-xl border-t border-gray-700/30 overflow-hidden"
+          {/* Card Content */}
+          <motion.div
+            whileHover={{ scale: 1.02, y: -5 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => handleModeSelect('join')}
+            className={`flex flex-col items-center gap-3 relative z-10 ${selectedMode === 'join' ? 'ring-2 ring-purple-400 rounded-xl p-2' : ''}`}
+          >
+            <motion.div
+              variants={iconAnimation}
+              whileHover="hover"
+              className="w-16 h-16 flex items-center justify-center bg-gradient-to-br from-purple-600 to-purple-400 rounded-full mb-2"
+            >
+              <UserPlus size={32} className="text-white" />
+            </motion.div>
+            
+            <motion.h2 
+              className="text-xl font-bold text-white flex items-center gap-2"
+              whileHover={{ scale: 1.05 }}
+            >
+              Join 1v1 Game
+              <motion.span
+                animate={{ y: [0, -5, 0] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+                className="text-2xl"
               >
-                <div className="p-4 text-left">
-                  <p className="text-gray-300 text-sm mb-3">
-                    Challenge a friend in real-time competition! Create a game, share the code, and see who has the better sports knowledge. Both players answer the same questions simultaneously.
-                  </p>
-                  <div className="text-xs text-gray-400">
-                    <span className="text-blue-400 font-medium">Perfect for:</span> Competing with friends, proving you're the sports trivia champion, and having fun with in-game chat.
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                🎮
+              </motion.span>
+            </motion.h2>
+            <p className="text-gray-400 text-sm mb-2">
+              Join with an invite code
+            </p>
+          </motion.div>
+          
+          {/* Improved Learn More Button */}
+          <motion.button 
+            onClick={(e) => handleLearnMore('join', e)}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className={`absolute bottom-3 left-0 right-0 mx-auto w-3/4 py-2 px-4 rounded-lg ${modeInfo['join'].btnBgColor} ${modeInfo['join'].btnHoverColor} ${modeInfo['join'].color} font-medium text-sm flex items-center justify-center gap-2 border ${modeInfo['join'].borderColor} transition-colors`}
+          >
+            <Info size={16} />
+            {activeInfoPanel === 'join' ? 'Hide Details' : 'Learn More'}
+          </motion.button>
         </motion.div>
       </motion.div>
+      
+      {/* Info Panel - Shows details for the selected mode */}
+      <AnimatePresence>
+        {activeInfoPanel && (
+          <motion.div
+            initial={{ opacity: 0, y: 10, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: 'auto' }}
+            exit={{ opacity: 0, y: -10, height: 0 }}
+            transition={{ duration: 0.3 }}
+            className={`w-full max-w-lg mb-6 ${modeInfo[activeInfoPanel].bgColor} rounded-xl p-5 overflow-hidden border ${modeInfo[activeInfoPanel].borderColor}`}
+          >
+            <h3 className={`text-xl font-bold ${modeInfo[activeInfoPanel].color} mb-3`}>
+              About {modeInfo[activeInfoPanel].title}
+            </h3>
+            
+            <p className="text-gray-300 text-sm mb-3">
+              {modeInfo[activeInfoPanel].description}
+            </p>
+            
+            <div className="text-xs text-gray-400">
+              <span className={`${modeInfo[activeInfoPanel].color} font-medium`}>Perfect for:</span> {modeInfo[activeInfoPanel].perfectFor}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
