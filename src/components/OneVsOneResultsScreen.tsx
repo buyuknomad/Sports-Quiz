@@ -1,6 +1,11 @@
-// Enhanced 1v1 Results screen component with matching solo style
-import React, { useEffect, useCallback } from 'react';
-import { Trophy, Home, RotateCw, Share2, Timer, Target, Award, CheckCircle, XCircle, Zap, Medal, Crown } from 'lucide-react';
+// Enhanced 1v1 Results screen component with improved sharing
+import React, { useEffect, useCallback, useState } from 'react';
+import { 
+  Trophy, Home, RotateCw, Share2, Timer, Target, Award, 
+  CheckCircle, XCircle, Zap, Medal, Crown, Copy, X,
+  Facebook, MessageCircle, Link as LinkIcon, Loader2
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { useOneVsOneStore } from '../store/oneVsOneStore';
 import type { Category } from '../types';
@@ -26,6 +31,37 @@ const getPerformanceMessage = (accuracy: number) => {
   if (accuracy >= 50) return 'Good Effort! 👍';
   return 'Keep Practicing! 💫';
 };
+
+// Custom X (formerly Twitter) icon component
+const XLogo = ({ size = 20, className = "" }: { size?: number, className?: string }) => {
+  return (
+    <svg 
+      width={size} 
+      height={size} 
+      viewBox="0 0 24 24" 
+      className={className}
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M17.1907 4H19.9333L13.73 11.0533L20.8 20H15.0267L10.7027 14.4667L5.74933 20H3.00267L9.66667 12.4533L2.93333 4H8.84L12.7533 9.0467L17.1907 4ZM15.72 18.4667H17.0667L8.15733 5.46667H6.70933L15.72 18.4667Z" />
+    </svg>
+  );
+};
+
+// Toast notification component
+const Toast = ({ message, onClose }: { message: string; onClose: () => void }) => (
+  <motion.div 
+    initial={{ opacity: 0, y: 50 }}
+    animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, y: 20 }}
+    className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50"
+  >
+    <span>{message}</span>
+    <button onClick={onClose} className="ml-2 text-white/80 hover:text-white">
+      <X size={16} />
+    </button>
+  </motion.div>
+);
 
 // Memoized answer distribution chart component
 const AnswerDistributionChart = React.memo(({ 
@@ -82,19 +118,253 @@ const AnswerDistributionChart = React.memo(({
 
 AnswerDistributionChart.displayName = 'AnswerDistributionChart';
 
+// Share Modal Component
+const ShareModal = ({ 
+  shareText, 
+  shareUrl, 
+  onClose, 
+  onShowToast,
+  winner,
+  loser,
+  isTied,
+  category,
+  categoryEmoji,
+  currentPlayer,
+  setCustomShareText
+}: { 
+  shareText: string; 
+  shareUrl: string;
+  onClose: () => void;
+  onShowToast: (message: string) => void;
+  winner: Player;
+  loser: Player;
+  isTied: boolean;
+  category: Category;
+  categoryEmoji: string;
+  currentPlayer: Player | undefined;
+  setCustomShareText: (text: string) => void;
+}) => {
+  const [loading, setLoading] = useState(false);
+
+  const handleCopyText = async () => {
+    try {
+      await navigator.clipboard.writeText(shareText);
+      onShowToast('Text copied to clipboard!');
+    } catch (error) {
+      console.error('Failed to copy text:', error);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      onShowToast('Link copied to clipboard!');
+    } catch (error) {
+      console.error('Failed to copy link:', error);
+    }
+  };
+  
+  const handleSuccessfulShare = () => {
+    setLoading(true);
+    
+    setTimeout(() => {
+      // Show confetti effect on successful share
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 }
+      });
+      
+      onShowToast('Results shared successfully!');
+      setLoading(false);
+      setTimeout(() => {
+        onClose();
+      }, 1000);
+    }, 500);
+  };
+  
+  const shareToSocial = (platform: string) => {
+    let shareUrl;
+    const fullText = shareText.includes('https://sportiq.games') ? shareText : `${shareText} https://sportiq.games`;
+    
+    switch(platform) {
+      case 'x':
+        shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(fullText)}`;
+        break;
+      case 'facebook':
+        shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent('https://sportiq.games')}&quote=${encodeURIComponent(shareText)}`;
+        break;
+      case 'whatsapp':
+        shareUrl = `https://wa.me/?text=${encodeURIComponent(fullText)}`;
+        break;
+      default:
+        return;
+    }
+    
+    window.open(shareUrl, '_blank');
+    handleSuccessfulShare();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
+      <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md animate-scaleIn">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-bold text-white">Share Your {winner?.username === currentPlayer?.username && !isTied ? "Victory" : "Results"}</h3>
+          <button 
+            onClick={onClose}
+            className="p-2 rounded-full hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
+            disabled={loading}
+          >
+            <X size={20} />
+          </button>
+        </div>
+        
+        <p className="text-sm text-gray-400 mb-4 text-center">Challenge your friends to beat your score!</p>
+        
+        {/* Visual Share Preview */}
+        <div className="bg-gradient-to-b from-gray-800 to-gray-900 p-4 rounded-lg border border-gray-700 mb-6 relative group">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-xs font-bold">S</div>
+            <span className="text-blue-400 font-bold">SportIQ</span>
+          </div>
+          <div className="bg-gray-700/50 rounded-lg p-3">
+            <div className="flex justify-between mb-2">
+              <div className="text-white font-bold">{currentPlayer?.username}</div>
+              <div className={isTied ? "text-blue-400" : winner?.username === currentPlayer?.username ? "text-green-400" : "text-yellow-400"}>
+                {isTied ? "Tied!" : winner?.username === currentPlayer?.username ? "Winner!" : "Challenger"}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-center">
+              <div className="bg-gray-800 rounded p-2">
+                <div className="text-xl font-bold text-yellow-400">{winner?.score}</div>
+                <div className="text-xs text-gray-400">{winner?.username}</div>
+              </div>
+              <div className="bg-gray-800 rounded p-2">
+                <div className="text-xl font-bold text-yellow-400">{loser?.score}</div>
+                <div className="text-xs text-gray-400">{loser?.username}</div>
+              </div>
+            </div>
+            <div className="text-center mt-2 text-sm text-gray-300">
+              {category.charAt(0).toUpperCase() + category.slice(1)} Quiz {categoryEmoji}
+            </div>
+          </div>
+          
+          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 
+                        flex items-center justify-center transition-opacity rounded-lg">
+            <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded text-white text-sm">
+              Preview
+            </span>
+          </div>
+        </div>
+        
+        {/* Customization */}
+        <div className="mb-6">
+          <label className="flex justify-between text-gray-300 text-sm mb-2">
+            <span>Customize your message:</span>
+            <button 
+              onClick={handleCopyText}
+              className="text-blue-400 hover:text-blue-300 flex items-center gap-1"
+            >
+              <Copy size={14} /> Copy
+            </button>
+          </label>
+          <textarea 
+            value={shareText}
+            onChange={(e) => setCustomShareText(e.target.value)}
+            className="w-full p-3 bg-gray-700 rounded-lg text-white text-sm resize-none border border-gray-600 focus:border-blue-500 focus:outline-none"
+            rows={3}
+          />
+        </div>
+        
+        {/* Share Options - Visual Redesign */}
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <button 
+            className="flex items-center justify-center gap-2 p-3 bg-blue-600 
+                     hover:bg-blue-700 rounded-lg text-white transition-colors"
+            onClick={() => shareToSocial('x')}
+            disabled={loading}
+          >
+            {loading ? <Loader2 size={18} className="animate-spin" /> : <Share2 size={18} />}
+            <span>Share to Social</span>
+          </button>
+          <button 
+            className="flex items-center justify-center gap-2 p-3 bg-green-600 
+                     hover:bg-green-700 rounded-lg text-white transition-colors"
+            onClick={() => {
+              handleCopyText();
+              handleSuccessfulShare();
+            }}
+            disabled={loading}
+          >
+            {loading ? <Loader2 size={18} className="animate-spin" /> : <MessageCircle size={18} />}
+            <span>Share via Chat</span>
+          </button>
+        </div>
+        
+        <div className="grid grid-cols-4 gap-3">
+          {/* X (formerly Twitter) */}
+          <button
+            onClick={() => shareToSocial('x')}
+            className="p-3 bg-black hover:bg-gray-900 rounded-lg text-white transition-colors flex items-center justify-center"
+            title="Share on X"
+            disabled={loading}
+          >
+            <XLogo size={20} />
+          </button>
+          
+          {/* Facebook */}
+          <button
+            onClick={() => shareToSocial('facebook')}
+            className="p-3 bg-[#4267B2]/90 hover:bg-[#4267B2] rounded-lg text-white transition-colors flex items-center justify-center"
+            title="Share on Facebook"
+            disabled={loading}
+          >
+            <Facebook size={20} />
+          </button>
+          
+          {/* WhatsApp */}
+          <button
+            onClick={() => shareToSocial('whatsapp')}
+            className="p-3 bg-[#25D366]/90 hover:bg-[#25D366] rounded-lg text-white transition-colors flex items-center justify-center"
+            title="Share on WhatsApp"
+            disabled={loading}
+          >
+            <MessageCircle size={20} />
+          </button>
+          
+          {/* Copy Link */}
+          <button
+            onClick={() => {
+              handleCopyLink();
+              handleSuccessfulShare();
+            }}
+            className="p-3 bg-gray-600/90 hover:bg-gray-600 rounded-lg text-white transition-colors flex items-center justify-center"
+            title="Copy link"
+            disabled={loading}
+          >
+            <LinkIcon size={20} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Enhanced player stats component
 const PlayerStats = React.memo(({ 
   player,
   isWinner,
   totalQuestions,
   maxPossibleScore,
-  playerResponseTimes
+  playerResponseTimes,
+  rematchReady
 }: {
   player: Player;
   isWinner: boolean;
   totalQuestions: number;
   maxPossibleScore: number;
   playerResponseTimes: number[];
+  rematchReady?: boolean;
 }) => {
   // Calculate statistics
   const score = player.score || 0;
@@ -133,6 +403,11 @@ const PlayerStats = React.memo(({
           {isWinner && (
             <div className="bg-yellow-400/10 text-yellow-400 px-2 py-1 rounded-full text-xs font-bold">
               Winner!
+            </div>
+          )}
+          {rematchReady && (
+            <div className="bg-green-500/10 text-green-400 px-2 py-1 rounded-full text-xs font-bold">
+              Ready for rematch ✓
             </div>
           )}
         </div>
@@ -214,22 +489,47 @@ const PlayerStats = React.memo(({
 
 PlayerStats.displayName = 'PlayerStats';
 
-// Memoized action buttons component
-const ActionButtons = React.memo(({ onPlayAgain, onHome, onShare }: {
+// Memoized action buttons component with rematch support
+const ActionButtons = React.memo(({ 
+  onPlayAgain, 
+  onHome, 
+  onShare, 
+  rematchRequested, 
+  onRematch,
+  onCancelRematch 
+}: {
   onPlayAgain: () => void;
   onHome: () => void;
   onShare: () => void;
+  rematchRequested: boolean;
+  onRematch: () => void;
+  onCancelRematch: () => void;
 }) => (
   <div className="grid grid-cols-3 gap-4">
-    <button
-      onClick={onPlayAgain}
-      className="flex items-center justify-center gap-2 p-4 rounded-xl bg-green-600 
-               hover:bg-green-700 text-white font-semibold transition-all transform 
-               hover:scale-[1.02] active:scale-[0.98] group"
-    >
-      <RotateCw className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" />
-      Play Again
-    </button>
+    {rematchRequested ? (
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-center gap-2 p-3 rounded-t-xl bg-gray-700 text-white">
+          <Loader2 className="w-5 h-5 animate-spin" />
+          <span>Waiting for opponent...</span>
+        </div>
+        <button 
+          onClick={onCancelRematch}
+          className="p-2 rounded-b-xl bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors"
+        >
+          Cancel Request
+        </button>
+      </div>
+    ) : (
+      <button
+        onClick={onRematch}
+        className="flex items-center justify-center gap-2 p-4 rounded-xl bg-green-600 
+                 hover:bg-green-700 text-white font-semibold transition-all transform 
+                 hover:scale-[1.02] active:scale-[0.98] group"
+      >
+        <RotateCw className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" />
+        Play Again
+      </button>
+    )}
     <button
       onClick={onHome}
       className="flex items-center justify-center gap-2 p-4 rounded-xl bg-gray-700 
@@ -239,14 +539,17 @@ const ActionButtons = React.memo(({ onPlayAgain, onHome, onShare }: {
       <Home className="w-5 h-5 group-hover:-translate-y-1 transition-transform" />
       Home
     </button>
-    <button
+          <button
       onClick={onShare}
-      className="flex items-center justify-center gap-2 p-4 rounded-xl bg-blue-600 
-               hover:bg-blue-700 text-white font-semibold transition-all transform 
+      className="flex flex-col items-center justify-center p-4 rounded-xl bg-blue-600 
+               hover:bg-blue-700 text-white transition-all transform 
                hover:scale-[1.02] active:scale-[0.98] group"
     >
-      <Share2 className="w-5 h-5 group-hover:rotate-45 transition-transform" />
-      Share
+      <div className="flex items-center justify-center gap-2">
+        <Share2 className="w-5 h-5 group-hover:rotate-45 transition-transform" />
+        <span>Challenge Friends</span>
+      </div>
+      <span className="text-xs text-blue-200 mt-1">Share your results</span>
     </button>
   </div>
 ));
@@ -260,8 +563,15 @@ export const OneVsOneResultsScreen: React.FC<OneVsOneResultsScreenProps> = ({ on
     questions, 
     completionTime = 0,
     getCurrentPlayer,
-    getPlayerResponseTimes
+    getPlayerResponseTimes,
+    socket,
+    gameId
   } = useOneVsOneStore();
+  
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const [rematchRequested, setRematchRequested] = useState(false);
+  const [rematchTimeout, setRematchTimeout] = useState<NodeJS.Timeout | null>(null);
 
   const currentPlayer = getCurrentPlayer();
   const categoryEmoji = categoryEmojis[category];
@@ -282,35 +592,100 @@ export const OneVsOneResultsScreen: React.FC<OneVsOneResultsScreenProps> = ({ on
     return getPlayerResponseTimes(playerId);
   }, [getPlayerResponseTimes]);
 
-  // Handle share score
-  const handleShare = useCallback(async () => {
-    if (!winner || !loser) return;
-    
-    const shareText = isTied
-      ? `🎮 We tied ${winner.score}-${loser.score} in the ${category} Sports Quiz! Can you beat us? #SportsQuiz`
-      : `🎮 I ${winner.username === currentPlayer?.username ? 'won' : 'lost'} ${winner.score}-${loser.score} in the ${category} Sports Quiz! Challenge me! #SportsQuiz`;
-    
-    try {
-      if (navigator.share && navigator.canShare && navigator.canShare({ text: shareText })) {
-        await navigator.share({
-          title: 'Sports Quiz Match Result',
-          text: shareText,
-        });
-      } else {
-        await navigator.clipboard.writeText(shareText);
-        alert('Result copied to clipboard!');
-      }
-    } catch (error) {
-      console.error('Share failed:', error);
-      try {
-        await navigator.clipboard.writeText(shareText);
-        alert('Result copied to clipboard!');
-      } catch (clipboardError) {
-        console.error('Clipboard failed:', clipboardError);
-        alert('Unable to share result. Please try again.');
-      }
+  // Create share content
+  // More compelling share text
+  const getShareText = () => {
+    if (isTied) {
+      return `Epic battle! I just tied ${winner?.score}-${loser?.score} with ${winner?.username === currentPlayer?.username ? loser?.username : winner?.username} in a ${category} quiz on SportIQ! Can you break our tie? 🎮 #SportIQ https://sportiq.games`;
+    } else if (winner?.username === currentPlayer?.username) {
+      return `Just beat ${loser?.username} ${winner?.score}-${loser?.score} in a ${category} quiz on SportIQ! Think you can defeat me? 🏆 #SportIQ https://sportiq.games`;
+    } else {
+      return `Just had an intense ${category} quiz battle on SportIQ! I scored ${loser?.score} against ${winner?.username}'s ${winner?.score}. Help me get my revenge! 💪 #SportIQ https://sportiq.games`;
     }
-  }, [winner, loser, category, currentPlayer?.username, isTied]);
+  };
+  
+  const [customShareText, setCustomShareText] = useState(getShareText());
+  const shareText = customShareText;
+  const shareUrl = `https://sportiq.games`;
+  const [shareSuccess, setShareSuccess] = useState(false);
+
+  // Rematch request handler
+  const handleRematch = () => {
+    if (!socket || !currentPlayer || !gameId) return;
+    
+    setRematchRequested(true);
+    console.log('Requesting rematch', { gameId, playerId: currentPlayer.id });
+    
+    socket.emit('requestRematch', { 
+      gameId, 
+      playerId: currentPlayer.id 
+    });
+    
+    // Set timeout to auto-cancel if no response
+    const timeout = setTimeout(() => {
+      setRematchRequested(false);
+      setToast('Opponent didn\'t respond to rematch request');
+    }, 30000); // 30 seconds
+    
+    setRematchTimeout(timeout);
+  };
+  
+  // Cancel rematch request
+  const handleCancelRematch = () => {
+    setRematchRequested(false);
+    
+    if (rematchTimeout) {
+      clearTimeout(rematchTimeout);
+      setRematchTimeout(null);
+    }
+  };
+
+  // Listen for socket events related to rematch
+  useEffect(() => {
+    if (!socket) return;
+    
+    const handleRematchRequested = (data: any) => {
+      console.log('Rematch requested by player:', data.playerId);
+      // Update player's rematch status in UI
+    };
+    
+    const handleGoToLobby = () => {
+      console.log('Both players ready for rematch, redirecting to lobby');
+      
+      // Clear any timeout if exists
+      if (rematchTimeout) {
+        clearTimeout(rematchTimeout);
+        setRematchTimeout(null);
+      }
+      
+      // Dispatch custom event to tell App.tsx to redirect to lobby
+      window.dispatchEvent(new CustomEvent('sportiq:returnToLobby'));
+    };
+    
+    socket.on('rematchRequested', handleRematchRequested);
+    socket.on('goToLobby', handleGoToLobby);
+    
+    return () => {
+      socket.off('rematchRequested', handleRematchRequested);
+      socket.off('goToLobby', handleGoToLobby);
+    };
+  }, [socket, rematchTimeout]);
+
+  // Toast handler
+  const showToast = (message: string) => {
+    setToast(message);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  // Handle share score
+  const handleShare = useCallback(() => {
+    // Skip native sharing and always use our custom modal
+    // This provides a more consistent experience across browsers
+    setShowShareModal(true);
+    
+    // Reset the share text when opening the modal
+    setCustomShareText(getShareText());
+  }, [getShareText]);
 
   // Trigger confetti effect on mount
   useEffect(() => {
@@ -347,6 +722,15 @@ export const OneVsOneResultsScreen: React.FC<OneVsOneResultsScreenProps> = ({ on
       return () => clearInterval(interval);
     }
   }, [isTied, winner]);
+  
+  // Clear timeout when unmounting
+  useEffect(() => {
+    return () => {
+      if (rematchTimeout) {
+        clearTimeout(rematchTimeout);
+      }
+    };
+  }, [rematchTimeout]);
 
   if (!sortedPlayers.length) {
     return <div className="text-white text-center p-8">Loading results...</div>;
@@ -387,6 +771,7 @@ export const OneVsOneResultsScreen: React.FC<OneVsOneResultsScreenProps> = ({ on
               totalQuestions={questions.length}
               maxPossibleScore={maxPossibleScore}
               playerResponseTimes={getResponseTimes(player.id)}
+              rematchReady={player.rematchReady}
             />
           ))}
         </div>
@@ -395,14 +780,75 @@ export const OneVsOneResultsScreen: React.FC<OneVsOneResultsScreenProps> = ({ on
           onPlayAgain={onPlayAgain}
           onHome={onHome}
           onShare={handleShare}
+          rematchRequested={rematchRequested}
+          onRematch={handleRematch}
+          onCancelRematch={handleCancelRematch}
         />
 
         <div className="mt-6 text-center">
           <p className="text-gray-400 text-sm">
-            Challenge your friends to beat your score! 🎮
+            Share your results with friends! 🎮
           </p>
         </div>
       </div>
+      
+      {/* Share Modal */}
+      {showShareModal && (
+        <ShareModal 
+          shareText={shareText}
+          shareUrl={shareUrl}
+          onClose={() => setShowShareModal(false)}
+          onShowToast={showToast}
+          winner={winner}
+          loser={loser}
+          isTied={isTied}
+          category={category}
+          categoryEmoji={categoryEmoji}
+          currentPlayer={currentPlayer}
+          setCustomShareText={setCustomShareText}
+        />
+      )}
+      
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toast && (
+          <Toast 
+            message={toast} 
+            onClose={() => setToast(null)} 
+          />
+        )}
+      </AnimatePresence>
+      
+      {/* Add these global styles to your CSS or create animation keyframes */}
+      <style jsx>{`
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        
+        @keyframes scaleIn {
+          from { transform: scale(0.95); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
+        }
+        
+        .animate-fadeIn {
+          animation: fadeIn 0.2s ease-out;
+        }
+        
+        .animate-scaleIn {
+          animation: scaleIn 0.3s ease-out;
+        }
+        
+        /* Almarena-like font styling */
+        .sport-share-text {
+          font-family: "Almarena Neue", "Montserrat", "Segoe UI", sans-serif;
+          font-weight: 700;
+          letter-spacing: -0.02em;
+          font-size: 1.1rem;
+          line-height: 1.4;
+          text-transform: none;
+        }
+      `}</style>
     </div>
   );
 };
