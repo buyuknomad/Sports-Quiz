@@ -1,437 +1,565 @@
-import React, { useState, useEffect } from 'react';
-import { Play, Trophy, Brain, Medal, Award, Zap, Users, Info, HelpCircle, ChevronDown, ChevronUp, Swords, MessageCircle, Activity, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Trophy, Users, Play, Info, HelpCircle, ChevronDown, ChevronUp, ArrowLeft, ArrowRight, Sparkles, Swords } from 'lucide-react';
 
-const Home = ({ onStart }) => {
-  const [username, setUsername] = useState('');
-  const [error, setError] = useState(false);
-  const [showLogo, setShowLogo] = useState(false);
-  const [currentFact, setCurrentFact] = useState(0);
-  const [showAboutSection, setShowAboutSection] = useState(false);
+// --- Data Definitions ---
+
+// Example Questions for the carousel
+const exampleQuestions = [
+  {
+    question: "Which country won the 2022 FIFA World Cup?",
+    category: "Football",
+    emoji: "⚽",
+    colorClass: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+    options: ["France", "Brazil", "Argentina", "Germany"]
+  },
+  {
+    question: "Who holds the NBA record for most points in a single game?",
+    category: "Basketball",
+    emoji: "🏀",
+    colorClass: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+    options: ["Michael Jordan", "Kobe Bryant", "Wilt Chamberlain", "LeBron James"]
+  },
+  {
+    question: "Which Grand Slam tournament is played on clay courts?",
+    category: "Tennis",
+    emoji: "🎾",
+    colorClass: "bg-green-500/20 text-green-400 border-green-500/30",
+    options: ["Wimbledon", "US Open", "French Open", "Australian Open"]
+  },
+  {
+    question: "Who is the most decorated Olympian of all time?",
+    category: "Olympics",
+    emoji: "🏅",
+    colorClass: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+    options: ["Usain Bolt", "Michael Phelps", "Simone Biles", "Carl Lewis"]
+  },
+  {
+    question: "Usain Bolt broke which two world records at the 2008 Olympics?",
+    category: "Mixed",
+    emoji: "🎯",
+    colorClass: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+    options: ["100m & 200m","200m & 400m","100m & 4x100m","200m & long jump"],
+     },
+  {
+    question: "Which team has won the most UEFA Champions League titles?",
+    category: "Football",
+    emoji: "⚽",
+    colorClass: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+    options: ["Real Madrid", "AC Milan", "Bayern Munich", "Liverpool"]
+  },
+];
+
+// Game Mode definitions for Homepage Display (Using WelcomeScreen style)
+const homePageGameModes = [
+  {
+    id: 'solo',
+    title: 'Solo Play',
+    description: 'Practice at your own pace',
+    icon: Trophy,
+    iconBgColor: 'bg-gradient-to-br from-green-600 to-green-400',
+    hoverGradient: 'from-green-600 to-green-400',
+    emoji: '🏆',
+  },
+  {
+    id: 'versus',
+    title: '1v1 Challenge',
+    description: 'Challenge a friend',
+    icon: Swords,
+    iconBgColor: 'bg-gradient-to-br from-blue-600 to-blue-400',
+    hoverGradient: 'from-blue-600 to-blue-400',
+    emoji: '⚔️',
+  }
+];
+
+// Category definitions
+const categories = [
+  { name: 'Football', emoji: '⚽' },
+  { name: 'Basketball', emoji: '🏀' },
+  { name: 'Tennis', emoji: '🎾' },
+  { name: 'Olympics', emoji: '🏅' },
+  { name: 'Mixed Sports', emoji: '🎯' }
+];
+
+// Sports icons for the animated background
+const sportsIcons = ['⚽', '🏀', '🎾', '🏈', '⚾', '🏆', '🥇', '🏅'];
+
+// --- Animation Variants ---
+const shakeAnimation = {
+  shake: {
+    x: [0, -8, 8, -8, 8, 0],
+    transition: { duration: 0.4 }
+  }
+};
+
+// Icon animation from WelcomeScreen example
+const iconAnimation = {
+  hover: {
+    scale: 1.2,
+    rotate: 360,
+    transition: {
+      type: "spring",
+      stiffness: 260,
+      damping: 20
+    }
+  }
+};
+
+
+// --- Sub-Components ---
+
+/**
+ * Animated Background Component
+ */
+const AnimatedBackground = React.memo(() => (
+  <div className="absolute inset-0 overflow-hidden z-0">
+    {sportsIcons.map((icon, index) => (
+      <motion.div
+        key={index}
+        className="absolute text-4xl opacity-5 pointer-events-none"
+        style={{
+            top: '-100px',
+            left: `${Math.random() * 100}%`,
+        }}
+        animate={{
+          y: '110vh',
+          rotate: 360,
+        }}
+        transition={{
+          duration: 20 + Math.random() * 15,
+          repeat: Infinity,
+          repeatType: "loop",
+          delay: Math.random() * 5,
+          ease: "linear"
+        }}
+      >
+        {icon}
+      </motion.div>
+    ))}
+  </div>
+));
+
+/**
+ * Example Questions Carousel Component
+ */
+const ExampleQuestionsCarousel = () => {
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [isAutoSliding, setIsAutoSliding] = useState(true);
+  const [direction, setDirection] = useState(1);
+
+  useEffect(() => {
+    if (!isAutoSliding) return undefined;
+    const interval = setInterval(() => {
+      setDirection(1);
+      setCurrentQuestionIndex(prev =>
+        prev === exampleQuestions.length - 1 ? 0 : prev + 1
+      );
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [isAutoSliding]);
+
+  const handleQuestionHover = (isHovering) => {
+    setIsAutoSliding(!isHovering);
+  };
+
+  const navigateQuestion = (newDirection) => {
+    setDirection(newDirection);
+    setCurrentQuestionIndex(prev => {
+      let nextIndex = prev + newDirection;
+      if (nextIndex < 0) nextIndex = exampleQuestions.length - 1;
+      else if (nextIndex >= exampleQuestions.length) nextIndex = 0;
+      return nextIndex;
+    });
+    setIsAutoSliding(false);
+    setTimeout(() => setIsAutoSliding(true), 7000);
+  };
+
+  const goToQuestion = (index) => {
+    setDirection(index > currentQuestionIndex ? 1 : -1);
+    setCurrentQuestionIndex(index);
+    setIsAutoSliding(false);
+    setTimeout(() => setIsAutoSliding(true), 7000);
+  }
+
+  const questionVariants = {
+    enter: (direction) => ({ x: direction > 0 ? 30 : -30, opacity: 0 }),
+    center: { zIndex: 1, x: 0, opacity: 1 },
+    exit: (direction) => ({ zIndex: 0, x: direction < 0 ? 30 : -30, opacity: 0 })
+  };
+
+  const currentQuestion = exampleQuestions[currentQuestionIndex];
+
+  return (
+    <motion.div
+      className="max-w-xl mx-auto mt-8 relative"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.7 }}
+      onMouseEnter={() => handleQuestionHover(true)}
+      onMouseLeave={() => handleQuestionHover(false)}
+    >
+       <p className="text-sm text-center text-blue-300/80 mb-2">See Example Questions</p>
+      <div className={`bg-gray-800/60 backdrop-blur-md border ${currentQuestion.colorClass} p-4 md:p-5 rounded-xl relative overflow-hidden shadow-lg`}>
+        <div className={`absolute top-0 right-0 px-3 py-1 rounded-bl-lg text-xs font-medium ${currentQuestion.colorClass} border-t-0 border-r-0 border border-gray-700/50`}>
+          {currentQuestion.emoji} {currentQuestion.category}
+        </div>
+        <div className="min-h-[130px] md:min-h-[100px] pr-10 pl-10 md:pr-4 md:pl-4 flex items-center">
+          <AnimatePresence initial={false} custom={direction} mode="wait">
+            <motion.div
+              key={currentQuestionIndex}
+              custom={direction}
+              variants={questionVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{
+                x: { type: "spring", stiffness: 300, damping: 30 },
+                opacity: { duration: 0.2 }
+              }}
+              className="w-full"
+            >
+              <h3 className="text-white text-md md:text-lg font-semibold mb-3">
+                {currentQuestion.question}
+              </h3>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                {currentQuestion.options.map((option, index) => (
+                  <span key={index} className="text-gray-400 truncate">
+                    {String.fromCharCode(65 + index)}. {option}
+                  </span>
+                ))}
+              </div>
+            </motion.div>
+          </AnimatePresence>
+        </div>
+        <button
+          onClick={() => navigateQuestion(-1)}
+          className="absolute left-1 md:left-2 top-1/2 transform -translate-y-1/2 p-2 rounded-full bg-gray-900/60 text-white hover:bg-gray-900/90 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+          aria-label="Previous question"
+        >
+          <ArrowLeft size={18} />
+        </button>
+        <button
+          onClick={() => navigateQuestion(1)}
+          className="absolute right-1 md:right-2 top-1/2 transform -translate-y-1/2 p-2 rounded-full bg-gray-900/60 text-white hover:bg-gray-900/90 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+          aria-label="Next question"
+        >
+          <ArrowRight size={18} />
+        </button>
+      </div>
+      <div className="flex justify-center gap-2 mt-4">
+        {exampleQuestions.map((_, index) => (
+          <button
+            key={index}
+            onClick={() => goToQuestion(index)}
+            className={`w-2 h-2 rounded-full transition-all duration-300 ${
+              currentQuestionIndex === index
+                ? 'bg-blue-500 scale-125 w-4'
+                : 'bg-gray-600 hover:bg-gray-500'
+            }`}
+            aria-label={`Go to question ${index + 1}`}
+          />
+        ))}
+      </div>
+    </motion.div>
+  );
+};
+
+
+/**
+ * Hero Section Component
+ */
+const HeroSection = () => (
+  <motion.div
+    className="text-center mb-12"
+    initial={{ y: -20, opacity: 0 }}
+    animate={{ y: 0, opacity: 1 }}
+    transition={{ duration: 0.7 }}
+  >
+    {/* Logo */}
+    <div className="relative inline-block mb-4">
+      <div className="relative z-20 flex items-center justify-center gap-3">
+        <motion.div
+          animate={{ rotate: [0, 5, 0, -5, 0], scale: [1, 1.1, 1] }}
+          transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+          className="text-5xl md:text-6xl"
+        >🏆</motion.div>
+        <h1 className="text-5xl md:text-6xl font-bold leading-tight tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-white to-blue-400">
+          Sport<span className="text-white">IQ</span>
+        </h1>
+        <motion.div
+          animate={{ rotate: [0, -5, 0, 5, 0], scale: [1, 1.1, 1] }}
+          transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+          className="text-5xl md:text-6xl"
+        >🧠</motion.div>
+      </div>
+      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full h-full bg-blue-500 opacity-15 blur-2xl rounded-full z-10"></div>
+    </div>
+    {/* Taglines */}
+    <motion.p
+      className="text-xl md:text-2xl text-gray-300 italic relative z-20"
+      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.5 }}
+    >The Ultimate Sports Trivia Challenge</motion.p>
+    <motion.p
+      className="text-lg md:text-xl text-blue-400 font-semibold mt-2 relative z-20"
+      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4, duration: 0.5 }}
+    >Challenge Your Sports Knowledge in Seconds</motion.p>
+    {/* Underline */}
+    <motion.div
+      className="h-1 w-24 md:w-32 bg-gradient-to-r from-blue-500 to-green-500 rounded-full mx-auto mt-4 mb-8"
+      initial={{ scaleX: 0, opacity: 0 }} animate={{ scaleX: 1, opacity: 1 }} transition={{ duration: 0.7, delay: 0.5 }}
+    />
+    {/* Example Questions */}
+    <ExampleQuestionsCarousel />
+    {/* Categories Label */}
+    <motion.h3
+        className="text-lg font-semibold text-white mt-10 mb-4"
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}
+    >Quiz Categories</motion.h3>
+    {/* Category Pills */}
+    <motion.div
+      className="flex flex-wrap justify-center gap-2"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}
+    >
+      {categories.map((category, index) => (
+        <motion.div
+          key={index}
+          initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 1.1 + index * 0.1 }}
+          whileHover={{ scale: 1.05, backgroundColor: 'rgba(55, 65, 81, 0.7)' }}
+          className="px-3 py-1 bg-gray-800/50 backdrop-blur-sm rounded-full text-sm text-gray-300 flex items-center gap-1 cursor-default transition-colors"
+        >
+          <span>{category.emoji}</span>
+          <span>{category.name}</span>
+        </motion.div>
+      ))}
+    </motion.div>
+    {/* Daily Questions Note */}
+    <motion.p
+        className="text-sm text-blue-300/90 mt-6 flex items-center justify-center gap-2"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 1.2, duration: 0.5 }}
+    >
+        <Sparkles size={16} className="text-yellow-400" />
+        New questions added daily!
+        <Sparkles size={16} className="text-yellow-400" />
+    </motion.p>
+  </motion.div>
+);
+
+/**
+ * Game Mode Selection Component
+ */
+const GameModeSelection = () => (
+  <motion.div
+    className="mb-12"
+    initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
+  >
+    <h2 className="text-2xl md:text-3xl text-white text-center font-semibold mb-8">Game Modes</h2>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 max-w-3xl mx-auto">
+      {homePageGameModes.map((mode, index) => (
+        <motion.div
+          key={mode.id}
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.6 + index * 0.1 }}
+          whileHover={{ y: -5, scale: 1.02, boxShadow: "0 10px 20px rgba(0, 0, 0, 0.3)", transition: { duration: 0.2 } }}
+          className="relative bg-gray-800/70 backdrop-blur-md rounded-xl p-6 overflow-hidden group border border-gray-700/50 cursor-default"
+        >
+          <motion.div
+            className={`absolute inset-0 bg-gradient-to-br ${mode.hoverGradient} opacity-0 group-hover:opacity-10 transition-opacity duration-300`}
+          />
+          <div className="flex flex-col items-center gap-3 relative z-10 text-center">
+              <motion.div
+                variants={iconAnimation}
+                whileHover="hover"
+                className={`w-16 h-16 flex items-center justify-center ${mode.iconBgColor} rounded-full mb-2 shadow-lg`}
+              >
+                <mode.icon size={32} className="text-white" />
+              </motion.div>
+              <motion.h2
+                className="text-xl font-bold text-white flex items-center gap-2"
+              >
+                {mode.title}
+                <motion.span
+                  animate={{ y: [0, -5, 0] }}
+                  transition={{ duration: 1.5, repeat: Infinity }}
+                  className="text-2xl"
+                >
+                  {mode.emoji}
+                </motion.span>
+              </motion.h2>
+              <p className="text-gray-400 text-sm mb-2">
+                {mode.description}
+              </p>
+          </div>
+             <motion.div
+              className={`absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r ${mode.iconBgColor} origin-left`}
+              initial={{ scaleX: 0 }} whileHover={{ scaleX: 1 }} transition={{ duration: 0.3, ease: "easeOut" }}
+            />
+        </motion.div>
+      ))}
+    </div>
+  </motion.div>
+);
+
+
+/**
+ * Login Area Component - Removed Animated Line
+ */
+const LoginArea = ({ username, setUsername, error, setError, handlePlay }) => {
+  const [isInputFocused, setIsInputFocused] = useState(false);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }}
+      className="max-w-md mx-auto bg-gray-800/80 backdrop-blur-lg rounded-2xl p-6 md:p-8 shadow-xl border border-gray-700/50"
+    >
+      <h2 className="text-2xl font-bold text-white mb-6 text-center">Enter The Arena</h2>
+      {/* Container for shaking */}
+      <motion.div
+        className="relative mb-6"
+        variants={shakeAnimation}
+        animate={error ? "shake" : ""}
+      >
+        {/* Input field container */}
+        {/* Border color changes on focus/error */}
+        <div className={`relative border-2 rounded-lg overflow-hidden transition-colors duration-300 ${error ? 'border-red-500' : isInputFocused ? 'border-blue-500' : 'border-gray-600'}`}>
+          <input
+            id="usernameInput"
+            type="text"
+            value={username}
+            onChange={(e) => { setUsername(e.target.value); setError(false); }}
+            onFocus={() => setIsInputFocused(true)}
+            onBlur={() => setIsInputFocused(false)}
+            className="w-full py-3 px-4 text-lg bg-gray-700/50 text-white placeholder-gray-400 focus:outline-none" // Adjusted padding
+            placeholder="Your Username"
+          />
+          {/* User icon inside */}
+          <Users className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={20} />
+
+          {/* --- Animated Focus Indicator Line REMOVED --- */}
+
+        </div>
+
+        {/* Error message */}
+        {error && (
+          <motion.p initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="text-red-500 text-sm mt-2 ml-1">
+            Please enter a username to continue
+          </motion.p>
+        )}
+      </motion.div>
+
+      {/* Play Button */}
+      <motion.button
+        onClick={handlePlay}
+        whileHover={{ scale: 1.03, boxShadow: "0 10px 25px -5px rgba(59, 130, 246, 0.4)" }}
+        whileTap={{ scale: 0.97 }}
+        className="w-full p-4 text-xl font-bold rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white transition-all duration-200 flex items-center justify-center gap-3 shadow-lg relative overflow-hidden group"
+      >
+        <motion.div
+          animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 2, repeat: Infinity, repeatType: "reverse" }}
+          className="relative z-10"
+        ><Play size={24} className="fill-white" /></motion.div>
+        <span className="relative z-10">TEST YOUR SPORTIQ</span>
+      </motion.button>
+      <p className="text-gray-400 text-xs mt-3 text-center">Select game mode on the next screen</p>
+    </motion.div>
+  );
+};
+
+/**
+ * How To Play Section Component
+ */
+const HowToPlay = () => {
   const [showHowToPlay, setShowHowToPlay] = useState(false);
 
-  // Fun sports facts - expanded to 10 interesting facts
-  const sportsFacts = [
-    "The first Olympic Games were held in Ancient Greece in 776 BC",
-    "A regulation NBA basketball hoop is exactly 10 feet (3.05m) high",
-    "The longest tennis match lasted 11 hours and 5 minutes at Wimbledon 2010",
-    "Soccer balls were originally made from inflated pig bladders",
-    "Michael Phelps has won more Olympic medals (28) than 100 countries",
-    "The Yankees have won the World Series 27 times—more than any other team",
-    "Golf is the only sport that has been played on the moon",
-    "The NHL's Stanley Cup has been used as a cereal bowl by players",
-    "The average lifespan of an NFL career is just 3.3 years",
-    "The most expensive soccer transfer was €222 million for Neymar in 2017"
-  ];
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.2 }}
+      className="text-center mt-10"
+    >
+      <button
+        onClick={() => setShowHowToPlay(!showHowToPlay)}
+        className="flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors mx-auto text-sm font-medium"
+      >
+        <HelpCircle size={16} />
+        <span>{showHowToPlay ? "Hide Guide" : "How To Play"}</span>
+        <motion.div animate={{ rotate: showHowToPlay ? 180 : 0 }}><ChevronDown size={16} /></motion.div>
+      </button>
+      <AnimatePresence>
+        {showHowToPlay && (
+          <motion.div
+            initial={{ height: 0, opacity: 0, marginTop: 0 }}
+            animate={{ height: "auto", opacity: 1, marginTop: '1rem' }}
+            exit={{ height: 0, opacity: 0, marginTop: 0 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            <div className="mx-auto max-w-xl bg-gray-800/60 backdrop-blur-sm rounded-xl p-5 text-left border border-gray-700/50">
+              <h3 className="text-white font-semibold mb-3 text-center text-lg">Quick Guide</h3>
+              <ol className="space-y-2 list-decimal list-inside text-sm text-gray-300 marker:text-blue-400">
+                <li>Enter your username above and hit 'Test Your SportIQ'.</li>
+                <li>Select your preferred game mode (Solo or 1v1).</li>
+                <li>Choose a sports category that interests you.</li>
+                <li>Answer 10 questions as quickly and accurately as possible.</li>
+                <li>Earn points for correct answers & speed bonuses. Check the leaderboard!</li>
+              </ol>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+};
 
-  // App features for collapsible section
-  const appFeatures = [
-    { title: "Multiple Categories", description: "Test your knowledge across Football, Basketball, Tennis, Olympics, and Mixed sports", icon: Trophy },
-    { title: "Solo Challenge", description: "Practice at your own pace and improve your sports knowledge", icon: Brain },
-    { title: "1v1 Duels", description: "Challenge friends in real-time competitive matches", icon: Swords },
-    { title: "Fresh Content", description: "New questions added every day to keep challenges exciting", icon: RefreshCw },
-    { title: "Performance Stats", description: "Track your response times and accuracy", icon: Activity }
-  ];
+/**
+ * Footer Component
+ */
+const Footer = () => (
+  <motion.div
+    initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.3 }}
+    className="mt-16 pb-8 text-center"
+  >
+    <p className="text-gray-500 text-xs">
+      © {new Date().getFullYear()} SportIQ - v2.0.14 - The Ultimate Sports Trivia Challenge {/* Updated version */}
+    </p>
+  </motion.div>
+);
 
-  // How to play steps
-  const howToPlaySteps = [
-    { title: "Enter username", description: "Enter your username to get started" },
-    { title: "Choose Game Mode", description: "Select Solo Play or challenge a friend in 1v1 Mode" },
-    { title: "Select Category", description: "Pick from Football, Basketball, Tennis, Olympics, or Mixed Sports" },
-    { title: "Answer Questions", description: "Test your knowledge with challenging sports trivia" },
-    { title: "Earn Points", description: "Get 10 points for correct answers plus speed bonuses" }
-  ];
 
-  // Cycle through sports facts
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentFact((prev) => (prev + 1) % sportsFacts.length);
-    }, 6000); // Slightly longer interval for better readability
-    
-    // Show the logo with a slight delay for better animation sequence
-    const timer = setTimeout(() => {
-      setShowLogo(true);
-    }, 300);
-    
-    return () => {
-      clearInterval(interval);
-      clearTimeout(timer);
-    };
-  }, []);
+// --- Main Component ---
 
-  const handlePlay = () => {
+const EnhancedHomePage = ({ onStart }) => {
+  const [username, setUsername] = useState('');
+  const [error, setError] = useState(false);
+
+  const handlePlay = useCallback(() => {
     if (username.trim().length === 0) {
       setError(true);
       return;
     }
+    setError(false);
     onStart(username.trim());
-  };
-
-  // Sports icons that will animate in the background
-  const sportsIcons = ['⚽', '🏀', '🎾', '🏈', '⚾', '🏆', '🥇', '🏅'];
+  }, [username, onStart]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#0c1220] to-[#1a1a2e] flex flex-col items-center justify-center p-4 overflow-hidden relative">
-      {/* Animated background icons */}
-      {sportsIcons.map((icon, index) => (
-        <motion.div
-          key={index}
-          className="absolute text-4xl opacity-5 pointer-events-none"
-          initial={{ x: Math.random() * window.innerWidth, y: -100 }}
-          animate={{ 
-            y: window.innerHeight + 100,
-            rotate: [0, 180, 360], 
-            x: `calc(${Math.random() * 100}vw)`
-          }}
-          transition={{ 
-            duration: 20 + Math.random() * 15, 
-            repeat: Infinity, 
-            delay: Math.random() * 5,
-            ease: "linear"
-          }}
-        >
-          {icon}
-        </motion.div>
-      ))}
-
-      <div className="w-full max-w-lg text-center z-10">
-        <AnimatePresence>
-          {showLogo && (
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: "spring", damping: 15 }}
-              className="mb-8"
-            >
-              <div className="flex items-center justify-center gap-3 mb-2">
-                <motion.div
-                  animate={{ rotate: [0, 10, 0, -10, 0] }}
-                  transition={{ duration: 5, repeat: Infinity }}
-                  className="text-5xl"
-                >
-                  🏆
-                </motion.div>
-                <h1 className="text-5xl md:text-6xl font-bold text-white leading-tight tracking-tight">
-                  <span className="text-blue-400">
-                    Sport<span className="text-white">IQ</span>
-                  </span>
-                </h1>
-                <motion.div
-                  animate={{ rotate: [0, -10, 0, 10, 0] }}
-                  transition={{ duration: 5, repeat: Infinity, delay: 0.5 }}
-                  className="text-5xl"
-                >
-                  🧠
-                </motion.div>
-              </div>
-              
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-              >
-                <p className="text-xl text-gray-300 italic">Test Your Sports Knowledge</p>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* About Game Section - Collapsible */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          className="mb-4"
-        >
-          <motion.button
-            onClick={() => setShowAboutSection(!showAboutSection)}
-            className="flex items-center justify-center gap-2 text-blue-400 hover:text-blue-300 transition-colors mx-auto"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <Info size={16} />
-            <span>About SportIQ</span>
-            {showAboutSection ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-          </motion.button>
-          
-          <AnimatePresence>
-            {showAboutSection && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="overflow-hidden"
-              >
-                <div className="bg-gray-800/60 backdrop-blur-sm rounded-xl p-4 my-3 text-left">
-                  <p className="text-gray-300 text-sm">
-                    <span className="font-bold text-blue-400">SportIQ</span> is the ultimate sports trivia challenge that tests your knowledge across multiple sports categories. Whether you're a casual fan or a sports expert, our carefully crafted questions will challenge and entertain you.
-                  </p>
-                  
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    {appFeatures.slice(0, 4).map((feature, index) => (
-                      <div key={index} className="flex items-start gap-2">
-                        <feature.icon size={16} className="text-blue-400 mt-0.5 flex-shrink-0" />
-                        <span className="text-xs text-gray-300">{feature.title}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
-
-        <motion.div 
-          className="bg-gray-800/80 backdrop-blur-md rounded-2xl p-8 shadow-2xl border border-gray-700 mb-4"
-          initial={{ y: 50, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ 
-            type: "spring", 
-            damping: 20, 
-            delay: 0.2 
-          }}
-        >
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold text-white mb-4">
-              Enter the Quiz Arena
-            </h2>
-            
-            <div className="mb-6">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Your Username"
-                  value={username}
-                  onChange={(e) => {
-                    setUsername(e.target.value);
-                    setError(false);
-                  }}
-                  className={`w-full p-4 pr-12 text-lg rounded-lg bg-gray-700 text-white placeholder-gray-400 
-                          border-2 ${error ? 'border-red-500' : 'border-gray-600'} 
-                          focus:border-blue-500 focus:outline-none transition-colors`}
-                />
-                <Users className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              </div>
-              
-              {error && (
-                <motion.p 
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="text-red-500 text-sm mt-2 text-left"
-                >
-                  Please enter a username to continue
-                </motion.p>
-              )}
-            </div>
-            
-            <motion.button
-              onClick={handlePlay}
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              className="w-full p-4 text-xl font-bold rounded-lg bg-blue-600
-                      hover:bg-blue-700
-                      text-white transition-all duration-200 flex items-center justify-center gap-3 shadow-lg"
-            >
-              <Play size={24} className="fill-white" />
-              TEST YOUR SPORTIQ
-            </motion.button>
-            <p className="text-gray-400 text-xs mt-2">Select game mode on the next screen</p>
-          </div>
-          
-          <motion.div 
-            className="grid grid-cols-3 gap-3 mb-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.7 }}
-          >
-            <div className="bg-gray-700/50 p-3 rounded-lg flex flex-col items-center">
-              <Trophy size={20} className="text-yellow-400 mb-1" />
-              <span className="text-sm text-gray-300">Solo Quiz</span>
-            </div>
-            <div className="bg-gray-700/50 p-3 rounded-lg flex flex-col items-center">
-              <Users size={20} className="text-blue-400 mb-1" />
-              <span className="text-sm text-gray-300">1v1 Duels</span>
-            </div>
-            <div className="bg-gray-700/50 p-3 rounded-lg flex flex-col items-center">
-              <Medal size={20} className="text-green-400 mb-1" />
-              <span className="text-sm text-gray-300">Leaderboard</span>
-            </div>
-          </motion.div>
-          
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.8 }}
-            className="text-gray-300 text-sm mb-3 font-medium"
-          >
-            Quiz Categories:
-          </motion.p>
-          
-          <motion.div 
-            className="grid grid-cols-3 sm:grid-cols-5 gap-1 sm:gap-2"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.9 }}
-          >
-            <div className="bg-gray-700/50 p-1 sm:p-2 rounded-lg flex flex-col items-center">
-              <span className="text-xl sm:text-2xl">⚽</span>
-              <span className="text-[10px] sm:text-xs text-gray-300">Football</span>
-            </div>
-            <div className="bg-gray-700/50 p-1 sm:p-2 rounded-lg flex flex-col items-center">
-              <span className="text-xl sm:text-2xl">🏀</span>
-              <span className="text-[10px] sm:text-xs text-gray-300">Basketball</span>
-            </div>
-            <div className="bg-gray-700/50 p-1 sm:p-2 rounded-lg flex flex-col items-center">
-              <span className="text-xl sm:text-2xl">🎾</span>
-              <span className="text-[10px] sm:text-xs text-gray-300">Tennis</span>
-            </div>
-            <div className="bg-gray-700/50 p-1 sm:p-2 rounded-lg flex flex-col items-center">
-              <span className="text-xl sm:text-2xl">🏅</span>
-              <span className="text-[10px] sm:text-xs text-gray-300">Olympics</span>
-            </div>
-            <div className="bg-gray-700/50 p-1 sm:p-2 rounded-lg flex flex-col items-center">
-              <span className="text-xl sm:text-2xl">🎯</span>
-              <span className="text-[10px] sm:text-xs text-gray-300">Mixed</span>
-            </div>
-          </motion.div>
-        </motion.div>
-
-        {/* How to Play - Collapsible Section */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1 }}
-          className="mb-4"
-        >
-          <motion.button
-            onClick={() => setShowHowToPlay(!showHowToPlay)}
-            className="flex items-center justify-center gap-2 text-green-400 hover:text-green-300 transition-colors mx-auto"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <HelpCircle size={16} />
-            <span>How to Play</span>
-            {showHowToPlay ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-          </motion.button>
-          
-          <AnimatePresence>
-            {showHowToPlay && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="overflow-hidden"
-              >
-                <div className="bg-gray-800/60 backdrop-blur-sm rounded-xl p-4 my-3">
-                  <div className="space-y-3">
-                    {howToPlaySteps.map((step, index) => (
-                      <div key={index} className="flex gap-3">
-                        <div className="w-6 h-6 bg-green-500/20 rounded-full flex items-center justify-center flex-shrink-0">
-                          <span className="text-green-400 text-xs font-bold">{index + 1}</span>
-                        </div>
-                        <div className="text-left">
-                          <p className="text-sm font-medium text-white">{step.title}</p>
-                          <p className="text-xs text-gray-400">{step.description}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
-        
-        {/* Enhanced Fun Facts with fluid animations - Mobile Optimized */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1 }}
-          className="mt-6 bg-gray-800/60 backdrop-blur-sm rounded-xl w-full overflow-hidden relative"
-        >
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-purple-500/10 opacity-50" />
-          <div className="absolute top-0 left-0 w-1 h-full bg-blue-400" />
-          
-          <div className="p-3 relative">
-            <div className="flex items-center gap-2 mb-1">
-              <motion.div
-                animate={{ 
-                  scale: [1, 1.1, 1],
-                  rotate: [0, 5, 0, -5, 0] 
-                }}
-                transition={{ duration: 3, repeat: Infinity }}
-              >
-                🔍
-              </motion.div>
-              <motion.p 
-                className="text-blue-400 font-bold text-xs uppercase tracking-wider"
-                animate={{ opacity: [0.7, 1, 0.7] }}
-                transition={{ duration: 2, repeat: Infinity }}
-              >
-                SPORTS FACT
-              </motion.p>
-            </div>
-            
-            <div className="min-h-[3.5em] flex items-center">
-              <AnimatePresence mode="wait">
-                <motion.p 
-                  key={currentFact}
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  exit={{ y: -20, opacity: 0 }}
-                  transition={{ 
-                    type: "spring", 
-                    stiffness: 100, 
-                    damping: 12,
-                    duration: 0.7
-                  }}
-                  className="text-gray-300 text-xs sm:text-sm italic break-words"
-                >
-                  {sportsFacts[currentFact]}
-                </motion.p>
-              </AnimatePresence>
-            </div>
-            
-            {/* Fact counter dots - Mobile Optimized */}
-            <div className="flex justify-center flex-wrap gap-1 mt-2">
-              {sportsFacts.slice(0, Math.min(5, sportsFacts.length)).map((_, index) => (
-                <motion.div
-                  key={index}
-                  className={`h-1 rounded-full ${index === currentFact % 5 ? 'w-4 bg-blue-400' : 'w-1 bg-gray-600'}`}
-                  animate={index === currentFact % 5 ? { 
-                    scale: [1, 1.2, 1],
-                    backgroundColor: ['#60a5fa', '#818cf8', '#60a5fa']
-                  } : {}}
-                  transition={{ duration: 2, repeat: index === currentFact % 5 ? Infinity : 0 }}
-                />
-              ))}
-              {sportsFacts.length > 5 && (
-                <motion.div 
-                  className="h-1 w-4 rounded-full bg-gray-600"
-                  animate={{ opacity: [0.4, 0.8, 0.4] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                />
-              )}
-            </div>
-          </div>
-        </motion.div>
-        
-        {/* Footer */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.2 }}
-          className="mt-6 text-center"
-        >
-          <p className="text-gray-500 text-xs">
-            © 2025 SportIQ - v1.2.0 - The Ultimate Sports Trivia Challenge
-          </p>
-        </motion.div>
+    <div className="min-h-screen w-full bg-gradient-to-b from-[#0c1220] to-[#1a1a2e] text-white overflow-x-hidden isolate">
+      <AnimatedBackground />
+      <div className="max-w-7xl mx-auto px-4 py-12 md:py-16 relative z-10">
+        <HeroSection />
+        <GameModeSelection />
+        <LoginArea
+          username={username}
+          setUsername={setUsername}
+          error={error}
+          setError={setError}
+          handlePlay={handlePlay}
+        />
+        <HowToPlay />
+        <Footer />
       </div>
     </div>
   );
 };
 
-export default Home;
+export default EnhancedHomePage;
