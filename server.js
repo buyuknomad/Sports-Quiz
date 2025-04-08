@@ -45,13 +45,18 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 const app = express();
 const httpServer = createServer(app);
 
-// Security middleware with updated CSP
+// Security middleware with updated CSP to allow Google Analytics
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      connectSrc: ["'self'", "wss:", "ws:", "*"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
+      connectSrc: ["'self'", "wss:", "ws:", "*", "https://www.google-analytics.com"],
+      scriptSrc: [
+        "'self'", 
+        "'unsafe-inline'", 
+        "https://www.googletagmanager.com", 
+        "https://www.google-analytics.com"
+      ],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:"],
       fontSrc: ["'self'", "data:", "https:"],

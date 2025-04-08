@@ -4,6 +4,8 @@ import { Trophy, Users, Play, Info, HelpCircle, ChevronDown, ChevronUp, ArrowLef
 
 // --- Data Definitions ---
 
+
+
 // Example Questions for the carousel
 const exampleQuestions = [
   {
