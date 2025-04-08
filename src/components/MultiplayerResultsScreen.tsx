@@ -1,164 +1,168 @@
-// Multiplayer results screen component with optimized rendering
+// Multiplayer lobby component using oneVsOneStore
 import React from 'react';
-import { Trophy, Home, RotateCw, Medal, Crown } from 'lucide-react';
-import { useGameStore } from '../store/gameStore';
-import type { Category, Player } from '../types';
+import { Copy, Users, Loader2, Clock, Shield, ShieldCheck } from 'lucide-react';
+import { useOneVsOneStore } from '../store/oneVsOneStore';
 
-interface MultiplayerResultsScreenProps {
-  onPlayAgain: () => void;
-  onHome: () => void;
-}
-
-const categoryEmojis: Record<Category, string> = {
-  football: '⚽',
-  basketball: '🏀',
-  tennis: '🎾',
-  olympics: '🏅',
-  mixed: '🎯'
-};
-
-// Memoized position style helper
-const getPositionStyle = (index: number) => {
-  if (index === 0) return 'bg-gradient-to-r from-yellow-600 to-yellow-500';
-  if (index === 1) return 'bg-gradient-to-r from-gray-600 to-gray-500';
-  if (index === 2) return 'bg-gradient-to-r from-amber-700 to-amber-600';
-  return 'bg-gray-700';
-};
-
-// Memoized position icon component
-const PositionIcon = React.memo(({ index }: { index: number }) => {
-  if (index === 0) return <Crown className="w-6 h-6 text-yellow-300" />;
-  if (index === 1) return <Medal className="w-6 h-6 text-gray-300" />;
-  if (index === 2) return <Medal className="w-6 h-6 text-amber-600" />;
-  return null;
-});
-
-PositionIcon.displayName = 'PositionIcon';
-
-// Memoized player list component
-const PlayerList = React.memo(({ players }: { players: Player[] }) => (
-  <div className="space-y-4">
-    {players.map((player, index) => (
-      <div
-        key={player.id}
-        className={`${getPositionStyle(index)} rounded-xl p-4 transition-transform hover:scale-[1.02]`}
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <PositionIcon index={index} />
-            <span className="text-white font-semibold">
-              {player.username}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-white font-bold">{player.score}</span>
-            <span className="text-sm">pts</span>
-          </div>
-        </div>
-      </div>
-    ))}
-  </div>
-));
-
-PlayerList.displayName = 'PlayerList';
-
-// Memoized winner display component
-const WinnerDisplay = React.memo(({ winner, isTied }: { 
-  winner: Player;
-  isTied: boolean;
-}) => (
-  <div className="space-y-2">
-    {isTied ? (
-      <p className="text-2xl text-green-400">
-        It's a tie! 🤝
-      </p>
-    ) : (
-      <>
-        <p className="text-2xl text-green-400">
-          Winner: {winner.username}
-        </p>
-        <p className="text-xl text-yellow-400">
-          {winner.score} points 🏆
-        </p>
-      </>
-    )}
-  </div>
-));
-
-WinnerDisplay.displayName = 'WinnerDisplay';
-
-// Memoized action buttons component
-const ActionButtons = React.memo(({ onPlayAgain, onHome }: {
-  onPlayAgain: () => void;
-  onHome: () => void;
-}) => (
-  <div className="grid grid-cols-2 gap-4">
-    <button
-      onClick={onPlayAgain}
-      className="flex items-center justify-center gap-2 p-4 rounded-xl bg-green-600 
-               hover:bg-green-700 text-white font-semibold transition-all transform 
-               hover:scale-[1.02] active:scale-[0.98]"
-    >
-      <RotateCw className="w-5 h-5" />
-      Play Again
-    </button>
-    <button
-      onClick={onHome}
-      className="flex items-center justify-center gap-2 p-4 rounded-xl bg-gray-700 
-               hover:bg-gray-600 text-white font-semibold transition-all transform 
-               hover:scale-[1.02] active:scale-[0.98]"
-    >
-      <Home className="w-5 h-5" />
-      Home
-    </button>
-  </div>
-));
-
-ActionButtons.displayName = 'ActionButtons';
-
-export const MultiplayerResultsScreen = React.memo<MultiplayerResultsScreenProps>(({ onPlayAgain, onHome }) => {
-  const { players, category } = useGameStore();
-  const sortedPlayers = React.useMemo(() => 
-    [...players].sort((a, b) => b.score - a.score),
-    [players]
-  );
+export const MultiplayerLobby: React.FC = () => {
+  const { 
+    gameId, 
+    players,
+    setPlayerReady,
+    category,
+    startCountdown,
+    getCurrentPlayer,
+    waitingForPlayers,
+    isGameStarted
+  } = useOneVsOneStore();
   
-  const winner = sortedPlayers[0];
-  const isTied = sortedPlayers.length > 1 && sortedPlayers[0].score === sortedPlayers[1].score;
-  const categoryEmoji = categoryEmojis[category];
+  const currentPlayer = getCurrentPlayer();
+  const playerCount = players.length;
+  const requiredPlayers = 2;
+  const allPlayersPresent = playerCount === requiredPlayers;
+
+  const copyInviteCode = () => {
+    navigator.clipboard.writeText(gameId);
+  };
+
+  const handleReady = () => {
+    if (currentPlayer && allPlayersPresent) {
+      setPlayerReady();
+    }
+  };
+
+  const allPlayersReady = allPlayersPresent && players.every(p => p.isReady);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-900">
-      <div className="w-full max-w-2xl bg-gray-800 rounded-2xl p-8 shadow-xl">
-        <div className="text-center mb-12">
-          <div className="relative">
-            <Trophy className="w-24 h-24 text-yellow-400 mx-auto mb-6 animate-bounce" />
-            <span className="absolute top-12 right-1/2 transform translate-x-16 text-4xl animate-pulse">
-              {categoryEmoji}
+    <div className="flex flex-col items-center justify-center min-h-screen p-4">
+      <div className="w-full max-w-2xl bg-gray-800 rounded-lg p-6 shadow-xl">
+        {/* Header with game code */}
+        <div className="flex items-center justify-between mb-8">
+          <h2 className="text-2xl font-bold text-white">1v1 Game Lobby</h2>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={gameId}
+              readOnly
+              className="bg-gray-700 text-white px-3 py-1 rounded font-mono text-sm"
+            />
+            <button
+              onClick={copyInviteCode}
+              className="p-2 rounded bg-green-600 hover:bg-green-700 text-white transition-colors"
+              title="Copy invite code"
+            >
+              <Copy size={20} />
+            </button>
+          </div>
+        </div>
+
+        {/* Player count indicator */}
+        <div className="mb-6 flex items-center justify-center">
+          <div className="bg-gray-700 rounded-full px-4 py-2 flex items-center gap-2">
+            <Users size={20} className="text-green-400" />
+            <span className="text-white font-medium">
+              {playerCount}/2 Players
             </span>
           </div>
-          
-          <h2 className="text-4xl font-bold text-white mb-4">Game Over!</h2>
-          <WinnerDisplay winner={winner} isTied={isTied} />
         </div>
 
-        <div className="mb-12">
-          <h3 className="text-xl text-white mb-6 flex items-center gap-2">
-            <Trophy className="w-5 h-5" />
-            Final Standings
+        {/* Waiting state message */}
+        {waitingForPlayers && (
+          <div className="text-center mb-8 animate-pulse">
+            <div className="flex items-center justify-center gap-3 text-yellow-400">
+              <Loader2 className="w-6 h-6 animate-spin" />
+              <span className="text-lg font-medium">
+                Waiting for opponent...
+              </span>
+            </div>
+            <p className="text-gray-400 mt-2">
+              Share the game code with your opponent to start
+            </p>
+          </div>
+        )}
+
+        {/* Players list */}
+        <div className="mb-8">
+          <h3 className="text-xl text-white flex items-center gap-2 mb-4">
+            <Users size={24} />
+            Players
           </h3>
-          
-          <PlayerList players={sortedPlayers} />
+
+          <div className="grid gap-3">
+            {players.map((player) => (
+              <div
+                key={player.id}
+                className={`flex items-center justify-between p-4 rounded-lg ${
+                  player.id === currentPlayer?.id ? 'bg-gray-700' : 'bg-gray-700/50'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-white font-medium">{player.username}</span>
+                  {player.id === currentPlayer?.id && (
+                    <span className="text-xs bg-green-600/20 text-green-400 px-2 py-1 rounded">
+                      You
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  {player.id === currentPlayer?.id && !player.isReady && allPlayersPresent && (
+                    <button
+                      onClick={handleReady}
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white 
+                               rounded-lg transition-colors flex items-center gap-2"
+                    >
+                      <Shield size={16} />
+                      Ready Up
+                    </button>
+                  )}
+                  {player.isReady ? (
+                    <span className="text-green-400 flex items-center gap-2">
+                      <ShieldCheck size={16} />
+                      Ready
+                    </span>
+                  ) : (
+                    <span className="text-gray-400 flex items-center gap-2">
+                      <Shield size={16} />
+                      Not Ready
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+            {waitingForPlayers && (
+              <div className="p-4 rounded-lg bg-gray-700/30 border-2 border-dashed border-gray-600">
+                <div className="text-gray-400 text-center">
+                  Waiting for opponent...
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        <ActionButtons onPlayAgain={onPlayAgain} onHome={onHome} />
+        {/* Countdown display */}
+        {startCountdown !== null && (
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-2 text-2xl text-green-400 font-bold">
+              <Clock className="w-6 h-6 animate-pulse" />
+              <span className="animate-pulse">
+                Game starting in {startCountdown}...
+              </span>
+            </div>
+          </div>
+        )}
 
-        <p className="text-center text-gray-400 mt-6 text-sm">
-          Thanks for playing! Challenge your friends to beat your score! 🎮
-        </p>
+        {/* Status message */}
+        {startCountdown === null && (
+          <div className="text-center text-gray-400">
+            {allPlayersReady ? (
+              <p>All players ready! Starting game...</p>
+            ) : allPlayersPresent ? (
+              <p>Waiting for all players to be ready...</p>
+            ) : (
+              <p>Waiting for opponent to join...</p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
-});
-
-MultiplayerResultsScreen.displayName = 'MultiplayerResultsScreen';
+};

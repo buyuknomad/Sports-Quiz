@@ -1,30 +1,8 @@
-// Enhanced game store with correct answers tracking
+// Enhanced game store with correct answers tracking and removed multiplayer logic
 import { create } from 'zustand';
 import { nanoid } from 'nanoid';
-import { io, Socket } from 'socket.io-client';
 import { fetchQuestions } from '../lib/supabase-client';
 import type { GameState, GameMode, Category, Player, Question, ChatMessage, GameStore } from '../types';
-
-// Socket.IO configuration
-const getServerUrl = () => {
-  if (window.location.hostname.includes('webcontainer') || 
-      window.location.hostname.includes('stackblitz') || 
-      window.location.hostname.includes('codesandbox')) {
-    return window.location.origin;
-  }
-  return import.meta.env.PROD ? window.location.origin : 'http://localhost:3000';
-};
-
-const socket: Socket = io(getServerUrl(), {
-  transports: ['polling', 'websocket'],
-  withCredentials: true,
-  reconnection: true,
-  reconnectionAttempts: 20,
-  reconnectionDelay: 1000,
-  timeout: 60000,
-  autoConnect: false,
-  path: '/socket.io/'
-});
 
 const initialState: GameState = {
   gameId: '',
@@ -45,7 +23,7 @@ const initialState: GameState = {
   questionResponseTimes: [],
   playerResponseTimes: new Map<string, number[]>(),
   isTransitioning: false,
-  waitingForPlayers: true,
+  waitingForPlayers: false,
   currentPlayerId: nanoid(),
   scores: new Map<string, number>(),
   selectedAnswer: null,
@@ -54,62 +32,36 @@ const initialState: GameState = {
   nextQuestionPending: null,
   lastSyncTime: Date.now(),
   questionStartTime: Date.now(),
-  socket: socket
+  socket: null
 };
 
 export const useGameStore = create<GameStore>((set, get) => {
   let transitionTimeout: NodeJS.Timeout | null = null;
-  let syncInterval: NodeJS.Timeout | null = null;
 
   const clearTimeouts = () => {
     if (transitionTimeout) clearTimeout(transitionTimeout);
-    if (syncInterval) clearInterval(syncInterval);
   };
-
-  // Socket event handlers
-  socket.on('connect', () => {
-    console.log('Socket connected with ID:', socket.id);
-    set(state => ({
-      ...state,
-      currentPlayerId: socket.id
-    }));
-  });
-
-  socket.on('gameCreated', (data) => {
-    console.log('Game created:', data);
-    set(state => ({
-      ...state,
-      gameId: data.gameId,
-      category: data.category,
-      questions: data.questions,
-      players: data.players,
-      waitingForPlayers: true
-    }));
-  });
-
-  socket.on('error', (error) => {
-    console.error('Socket error:', error);
-  });
 
   return {
     ...initialState,
-    socket,
 
     resetGame: () => {
       clearTimeouts();
-      if (socket.connected) {
-        socket.disconnect();
-      }
       set({
         ...initialState,
         startTime: Date.now(),
         questionStartTime: Date.now(),
-        currentPlayerId: nanoid(),
-        socket: socket
+        currentPlayerId: nanoid()
       });
     },
 
     initializeGame: async (mode: GameMode) => {
+      // Only handle solo mode initialization
+      if (mode !== 'solo') {
+        console.log('Non-solo mode requested, deferring to oneVsOneStore');
+        return Promise.resolve();
+      }
+
       clearTimeouts();
       const playerId = nanoid();
       
@@ -119,15 +71,9 @@ export const useGameStore = create<GameStore>((set, get) => {
         currentPlayerId: playerId,
         startTime: Date.now(),
         questionStartTime: Date.now(),
-        waitingForPlayers: mode !== 'solo',
-        socket: socket,
+        waitingForPlayers: false,
         isGameStarted: false
       });
-
-      if (mode !== 'solo') {
-        console.log('Connecting socket for multiplayer game...');
-        socket.connect();
-      }
     },
 
     addPlayer: (username: string) => {
@@ -140,7 +86,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           id: playerId,
           username,
           score: 0,
-          correctAnswers: 0, // Initialize correctAnswers
+          correctAnswers: 0,
           isReady: false,
           hasFinished: false
         }],
@@ -156,55 +102,66 @@ export const useGameStore = create<GameStore>((set, get) => {
       const state = get();
       console.log('Setting category:', category, 'Mode:', state.mode);
       
+      // Only handle solo mode
+      if (state.mode !== 'solo') {
+        console.log('Non-solo mode requested, deferring to oneVsOneStore');
+        return Promise.resolve();
+      }
+      
+      if ((state as any)._categoryFetchInProgress) {
+        console.log('Category fetch already in progress, ignoring duplicate request');
+        return;
+      }
+      
+      if (state.category === category && state.questions.length > 0) {
+        console.log('Category already set and questions loaded. Skipping duplicate fetch.');
+        
+        if (!state.isGameStarted) {
+          setTimeout(() => {
+            set({ isGameStarted: true });
+          }, 50);
+        }
+        return;
+      }
+      
       try {
-        // First update the category immediately
+        set(state => ({ ...state, _categoryFetchInProgress: true }));
         set(state => ({ ...state, category }));
         
-        if (state.mode === 'solo') {
-          // Then fetch questions for the new category
-          const questions = await fetchQuestions(category);
-          console.log('Fetched questions for category:', category, questions);
-          
-          // Update state with new questions and reset game state
-          set(state => ({
-            ...state,
-            questions,
-            currentQuestion: 0,
-            timeRemaining: 15,
-            isGameStarted: true,
-            questionResponseTimes: [],
-            startTime: Date.now(),
-            questionStartTime: Date.now(),
-            questionStartTimes: [Date.now()],
-            waitingForPlayers: false,
-            isGameEnded: false,
-            isTransitioning: false,
-            selectedAnswer: null,
-            isAnswerChecked: false,
-            isCorrect: false,
-            scores: new Map([[state.currentPlayerId, 0]]),
-            players: state.players.map(p => ({
-              ...p,
-              score: 0,
-              isReady: false,
-              hasFinished: false
-            }))
-          }));
-        } else {
-          const username = state.players[0]?.username || localStorage.getItem('username') || 'Guest';
-          console.log('Creating multiplayer game:', {
-            mode: state.mode,
-            category,
-            username
-          });
-          
-          socket.emit('createGame', { 
-            mode: state.mode, 
-            category, 
-            username
-          });
-        }
+        const questions = await fetchQuestions(category);
+        console.log('Fetched questions for category:', category, questions);
+        
+        set(state => ({
+          ...state,
+          questions,
+          currentQuestion: 0,
+          timeRemaining: 15,
+          questionResponseTimes: [],
+          startTime: Date.now(),
+          questionStartTime: Date.now(),
+          questionStartTimes: [Date.now()],
+          waitingForPlayers: false,
+          isGameEnded: false,
+          isTransitioning: false,
+          selectedAnswer: null,
+          isAnswerChecked: false,
+          isCorrect: false,
+          scores: new Map([[state.currentPlayerId, 0]]),
+          players: state.players.map(p => ({
+            ...p,
+            score: 0,
+            correctAnswers: 0,
+            isReady: false,
+            hasFinished: false
+          })),
+          _categoryFetchInProgress: false
+        }));
+        
+        setTimeout(() => {
+          set({ isGameStarted: true });
+        }, 50);
       } catch (error) {
+        set(state => ({ ...state, _categoryFetchInProgress: false }));
         console.error('Error in setCategory:', error);
         throw error;
       }
@@ -216,8 +173,11 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     startGame: () => {
+      // Solo mode only
       const state = get();
-      socket.emit('startGame', { gameId: state.gameId });
+      if (state.mode === 'solo') {
+        set({ isGameStarted: true });
+      }
     },
 
     endGame: () => {
@@ -231,8 +191,6 @@ export const useGameStore = create<GameStore>((set, get) => {
           isGameEnded: true,
           completionTime: totalTime
         });
-      } else {
-        socket.emit('gameOver', { gameId: state.gameId });
       }
     },
 
@@ -300,38 +258,23 @@ export const useGameStore = create<GameStore>((set, get) => {
             });
           }
         }, 2000);
-      } else {
-        socket.emit('submitAnswer', {
-          gameId: state.gameId,
-          playerId: currentPlayer.id,
-          answer,
-          timeRemaining,
-          points,
-          totalScore,
-          responseTime,
-          allResponseTimes: newResponseTimes,
-          isCorrect
-        });
       }
     },
 
     setPlayerReady: () => {
-      const state = get();
-      if (!state.gameId) return;
-      socket.emit('playerReady', { gameId: state.gameId });
+      // Solo mode doesn't use this
     },
 
-    addChatMessage: (playerId: string, message: string) => {
-      const state = get();
-      socket.emit('chatMessage', { gameId: state.gameId, message });
+    addChatMessage: () => {
+      // Solo mode doesn't use chat
     },
 
     setIsTransitioning: (value: boolean) => {
       set({ isTransitioning: value });
     },
 
-    handleRematch: (gameId: string, playerId: string) => {
-      socket.emit('requestRematch', { gameId, playerId });
+    handleRematch: () => {
+      // Solo mode doesn't use rematch
     },
 
     getPlayerResponseTimes: (playerId: string) => {
@@ -342,16 +285,9 @@ export const useGameStore = create<GameStore>((set, get) => {
       return state.playerResponseTimes.get(playerId) || [];
     },
 
-    joinGame: (gameId: string, username: string) => {
-      clearTimeouts();
-      try {
-        console.log('Joining game:', gameId, 'as:', username);
-        socket.connect();
-        socket.emit('joinGame', { gameId, username });
-      } catch (error) {
-        console.error('Error joining game:', error);
-        throw error;
-      }
+    joinGame: () => {
+      // Solo mode doesn't use this
+      return Promise.resolve();
     }
   };
 });

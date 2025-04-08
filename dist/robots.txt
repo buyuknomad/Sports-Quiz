@@ -1,0 +1,37 @@
+# robots.txt for SportIQ (https://sportiq.games)
+User-agent: *
+Host: sportiq.games
+
+# Allow indexing of main pages
+Allow: /
+Allow: /welcome
+Allow: /categories
+
+# Disallow gameplay-specific areas (client-side only)
+Disallow: /game/
+Disallow: /invite/
+Disallow: /lobby/
+Disallow: /results/
+
+# Disallow admin and management areas
+Disallow: /admin/
+Disallow: /manage/
+Disallow: /dashboard/
+
+# Disallow API endpoints and socket connections
+Disallow: /api/
+Disallow: /socket.io/
+
+# Disallow any user-specific content
+Disallow: /profile/
+Disallow: /account/
+Disallow: /user/
+
+# Disallow React router special paths
+Disallow: /*?
+
+# Crawl delay for throttling (optional)
+Crawl-delay: 1
+
+# Sitemap location
+Sitemap: https://sportiq.games/sitemap.xml

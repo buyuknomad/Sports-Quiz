@@ -1,0 +1,24 @@
+{
+  "name": "SportIQ - Sports Quiz Battles",
+  "short_name": "SportIQ",
+  "description": "Test your sports knowledge in solo mode or challenge friends to 1v1 battles",
+  "icons": [
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "theme_color": "#1a1a2e",
+  "background_color": "#1a1a2e",
+  "start_url": "/welcome",
+  "display": "standalone",
+  "orientation": "portrait"
+}

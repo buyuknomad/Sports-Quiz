@@ -3,9 +3,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { useOneVsOneStore } from '../store/oneVsOneStore';
 import { quickChatMessages } from '../constants/chat';
-import { Trophy, Copy, MessageCircle, X, Clock, Target, Circle, Medal, Dumbbell, ArrowLeft, Home } from 'lucide-react';
+import { 
+  Trophy, Copy, MessageCircle, X, Clock, Target, Circle, 
+  Medal, Dumbbell, ArrowLeft, Home, LogOut 
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { GameMode } from '../types';
+import { NavigationButton, ConfirmationDialog } from './navigation';
+import { NAVIGATION_LABELS, CONFIRMATION_MESSAGES } from '../constants/navigation';
 
 interface QuizGameProps {
   mode: GameMode;
@@ -46,6 +51,16 @@ const optionVariants = {
 };
 
 const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMode }) => {
+  // Log component mounting
+  useEffect(() => {
+    console.log('QuizGame component mounted for mode:', mode);
+    
+    // Cleanup when unmounting
+    return () => {
+      console.log('QuizGame component unmounting');
+    };
+  }, [mode]);
+
   const soloStore = useGameStore();
   const multiStore = useOneVsOneStore();
   const store = mode === 'solo' ? soloStore : multiStore;
@@ -61,7 +76,10 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
     submitAnswer,
     getCurrentPlayer,
     getPlayerResponseTimes,
-    endGame
+    endGame,
+    socket,
+    gameId,
+    resetGame
   } = store;
   
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
@@ -73,12 +91,27 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
   const [earnedPoints, setEarnedPoints] = useState(0);
   const [currentBonusTier, setCurrentBonusTier] = useState<BonusTier | null>(null);
   const [endingTriggered, setEndingTriggered] = useState(false);
-  const [showNavConfirm, setShowNavConfirm] = useState<'category' | 'mode' | null>(null);
   const [currentCorrectAnswer, setCurrentCorrectAnswer] = useState<string | null>(null);
   
+  // State for confirmation dialog
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    type: 'category' | 'mode' | 'leave' | null;
+  }>({ isOpen: false, type: null });
+  
   const currentPlayer = getCurrentPlayer();
+  const isHost = currentPlayer?.isHost;
   const question = questions[currentQuestion];
   const isMultiplayer = mode !== 'solo';
+
+  // Monitor question changes
+  useEffect(() => {
+    if (question) {
+      console.log(`Current question (${currentQuestion}):`, question.question.substring(0, 30) + '...');
+    } else {
+      console.log('No question available yet');
+    }
+  }, [question, currentQuestion]);
 
   const categoryConfig = {
     football: { icon: Trophy, emoji: '⚽', color: 'text-yellow-400' },
@@ -95,25 +128,37 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
   const lastResponseTime = currentPlayerResponseTimes[currentPlayerResponseTimes.length - 1];
   const totalResponseTime = currentPlayerResponseTimes.reduce((sum, time) => sum + time, 0);
 
+  // Navigation handlers
   const handleBackToCategory = () => {
-    setShowNavConfirm('category');
+    setConfirmDialog({ isOpen: true, type: 'category' });
   };
 
   const handleBackToMode = () => {
-    setShowNavConfirm('mode');
+    setConfirmDialog({ isOpen: true, type: 'mode' });
   };
 
-  const confirmNavigation = (destination: 'category' | 'mode') => {
-    setShowNavConfirm(null);
-    if (destination === 'category' && onBackToCategory) {
+  const handleLeaveGame = () => {
+    setConfirmDialog({ isOpen: true, type: 'leave' });
+  };
+
+  // Handle navigation confirmation
+  const handleConfirmNavigation = () => {
+    if (isMultiplayer && socket?.connected) {
+      console.log('Multiplayer mode: notifying server about leaving the game');
+      socket.emit('leaveGame', { gameId, isHost: isHost || false });
+      
+      // Clean up game state locally
+      resetGame();
+    }
+    
+    // Navigate based on dialog type
+    if (confirmDialog.type === 'category' && onBackToCategory) {
       onBackToCategory();
-    } else if (destination === 'mode' && onBackToMode) {
+    } else if ((confirmDialog.type === 'mode' || confirmDialog.type === 'leave') && onBackToMode) {
       onBackToMode();
     }
-  };
-
-  const cancelNavigation = () => {
-    setShowNavConfirm(null);
+    
+    setConfirmDialog({ isOpen: false, type: null });
   };
 
   useEffect(() => {
@@ -144,16 +189,19 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
   ]);
 
   useEffect(() => {
-    console.log('Question changed, resetting state');
-    
-    setIsButtonEnabled(true);
-    setSelectedAnswer(null);
-    setIsAnswerChecked(false);
-    setIsCorrect(false);
-    setLocalTime(15);
-    setEarnedPoints(0);
-    setCurrentBonusTier(null);
-    setCurrentCorrectAnswer(null);
+    // Only reset state if we actually have a question to display
+    if (question) {
+      console.log('Question changed, resetting state for question:', currentQuestion);
+      
+      setIsButtonEnabled(true);
+      setSelectedAnswer(null);
+      setIsAnswerChecked(false);
+      setIsCorrect(false);
+      setLocalTime(15);
+      setEarnedPoints(0);
+      setCurrentBonusTier(null);
+      setCurrentCorrectAnswer(null);
+    }
   }, [currentQuestion, question]);
 
   const getBonusTier = useCallback((time: number): BonusTier => {
@@ -313,86 +361,32 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
 
   return (
     <div className="min-h-screen bg-background p-4">
-      {/* Navigation Confirmation Modal */}
-      <AnimatePresence>
-        {showNavConfirm && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-gray-800 rounded-xl p-6 max-w-md w-full"
-            >
-              <h3 className="text-xl font-bold text-white mb-4">
-                Are you sure?
-              </h3>
-              <p className="text-gray-300 mb-6">
-                Your current progress will be lost if you leave this game.
-              </p>
-              <div className="flex gap-4 justify-end">
-                <button
-                  onClick={cancelNavigation}
-                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white transition-colors"
-                >
-                  Stay in Game
-                </button>
-                <button
-                  onClick={() => confirmNavigation(showNavConfirm)}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white transition-colors"
-                >
-                  Leave Game
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Navigation confirmation dialog */}
+      <ConfirmationDialog
+        isOpen={confirmDialog.isOpen}
+        onConfirm={handleConfirmNavigation}
+        onCancel={() => setConfirmDialog({ isOpen: false, type: null })}
+        title="Are you sure?"
+        message={isMultiplayer && isHost
+          ? CONFIRMATION_MESSAGES.HOST_LEAVE
+          : CONFIRMATION_MESSAGES.LEAVE_GAME}
+        confirmText={confirmDialog.type === 'category' 
+          ? NAVIGATION_LABELS.CATEGORIES 
+          : confirmDialog.type === 'leave'
+            ? "Leave Game"
+            : NAVIGATION_LABELS.MODES}
+        cancelText={NAVIGATION_LABELS.STAY}
+      />
 
-      {/* Header Bar with Navigation Buttons */}
+      {/* Header Bar with Game Info Only */}
       <motion.div 
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="fixed top-0 left-0 right-0 bg-gray-800/90 backdrop-blur-sm border-b border-gray-700/50 z-50"
+        className="fixed top-0 left-0 right-0 bg-gray-800/90 backdrop-blur-sm border-b border-gray-700/50 z-40"
       >
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          {/* Left side - Navigation buttons */}
-          <div className="flex items-center gap-2">
-            {/* Back to Category Button */}
-            {onBackToCategory && (
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={handleBackToCategory}
-                className="flex items-center gap-1 px-3 py-1 bg-gray-700/50 hover:bg-gray-700 
-                         rounded-lg text-white text-sm transition-colors group"
-              >
-                <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                <span>Categories</span>
-              </motion.button>
-            )}
-
-            {/* Back to Home/Mode Button */}
-            {onBackToMode && (
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={handleBackToMode}
-                className="flex items-center gap-1 px-3 py-1 bg-gray-700/50 hover:bg-gray-700 
-                         rounded-lg text-white text-sm transition-colors group"
-              >
-                <Home className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                <span>Home</span>
-              </motion.button>
-            )}
-          </div>
-          
-          {/* Middle - Centered title */}
-          <div className="flex items-center justify-center gap-2 absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
+          {/* Centered title */}
+          <div className="flex items-center justify-center gap-2 mx-auto">
             <motion.div
               whileHover={{ scale: 1.1, rotate: 360 }}
               transition={{ duration: 0.5 }}
@@ -460,6 +454,45 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
           </div>
         </div>
       </motion.div>
+
+      {/* Different navigation for solo vs multiplayer */}
+      {isMultiplayer ? (
+        // Multiplayer mode - single Leave Game button
+        <div className="fixed bottom-6 left-6 z-50">
+          <NavigationButton
+            icon={LogOut}
+            label="Leave Game"
+            onClick={handleLeaveGame}
+          />
+        </div>
+      ) : (
+        // Solo mode - keep both category and home buttons
+        <div className="fixed bottom-6 left-6 z-50 flex flex-col gap-3">
+          {onBackToCategory && (
+            <NavigationButton
+              icon={ArrowLeft}
+              label={NAVIGATION_LABELS.CATEGORIES}
+              onClick={handleBackToCategory}
+            />
+          )}
+          
+          {onBackToMode && (
+            <NavigationButton
+              icon={Home}
+              label={NAVIGATION_LABELS.MODES}
+              onClick={handleBackToMode}
+              delay={0.1}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Host indicator for multiplayer */}
+      {isMultiplayer && isHost && (
+        <div className="fixed top-4 right-4 px-3 py-1 rounded-full text-sm bg-yellow-500/20 text-yellow-400 flex items-center gap-1">
+          <Trophy size={14} /> Host
+        </div>
+      )}
 
       <div className="container-game pt-20">
         <motion.div 
