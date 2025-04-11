@@ -320,7 +320,7 @@ The categories must be exactly: ${categories.join(', ')}. **Use lowercase for ca
     3.  **Explanation:** For each question, provide a concise, one-sentence explanation justifying why the 'correct_answer' is correct, ideally citing a key fact or reason based on grounding information.
     4.  **Specificity & Difficulty:** Aim for a mix of difficulties (easy, moderate, hard) focusing on specific records, events, achievements, rules, or interesting details related to the topic and category. Easy ones should not be trivial.
     5.  **Distractors:** The incorrect options should be plausible but *clearly* incorrect based on verifiable facts or grounding results.
-    6.  **Avoid overly generic questions**. Focus on specific records, historical events, notable player achievements, rule nuances, tournament facts, or interesting details.
+    6.  **Avoid overly generic questions**. Focus on specific records, historical events, notable player achievements, tournament facts, or interesting details.
 
     You can also refer to this broader list of topics for additional inspiration on the types of topics to consider:
     ---
