@@ -1,6 +1,6 @@
-// App.tsx with enhanced Google Analytics tracking
+// App.tsx with enhanced Google Analytics tracking and added routes for FAQ and About pages
 import React, { useState, useEffect, useCallback } from 'react';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import Home from './components/Home';
 import WelcomeScreen from './components/WelcomeScreen';
@@ -10,6 +10,8 @@ import QuizGame from './components/QuizGame';
 import SoloResultsScreen from './components/SoloResultsScreen';
 import { OneVsOneResultsScreen } from './components/OneVsOneResultsScreen';
 import { InviteSystem } from './components/InviteSystem';
+import FAQPage from './components/FAQPage';
+import AboutPage from './components/AboutPage';
 import { useGameStore } from './store/gameStore';
 import { useOneVsOneStore } from './store/oneVsOneStore';
 import type { GameMode, Category } from './types';
@@ -24,7 +26,13 @@ const EnhancedRouteTracker = ({
   currentView: string; 
   additionalParams?: Record<string, any>; 
 }) => {
+  const location = useLocation();
   const { trackPageView, trackEvent } = useAnalyticsEvent();
+
+  useEffect(() => {
+    // Track regular route changes
+    trackPageView(location.pathname);
+  }, [location, trackPageView]);
 
   useEffect(() => {
     // Track state-based view changes as virtual pageviews
@@ -46,6 +54,7 @@ const EnhancedRouteTracker = ({
   return null;
 };
 
+// Main App Component
 function App() {
   const [gameState, setGameState] = useState<'home' | 'welcome' | 'category' | 'invite' | 'lobby' | 'game' | 'results' | 'loading'>('home');
   const [currentMode, setCurrentMode] = useState<GameMode>('solo');
@@ -488,6 +497,7 @@ function App() {
     }
   };
 
+  // Render the game app with proper routing
   return (
     <ErrorBoundary>
       <BrowserRouter>
@@ -497,63 +507,72 @@ function App() {
           additionalParams={analyticsParams}
         />
         
-        <div className="min-h-screen bg-[#1a1a1a]">
-          {gameState === 'home' && (
-            <Home onStart={handleHomeStart} />
-          )}
-          {gameState === 'welcome' && (
-            <WelcomeScreen onStart={handleStart} />
-          )}
-          {gameState === 'invite' && (
-            <InviteSystem 
-              onJoinSuccess={handleInviteSuccess} 
-              onBackToMode={handleReturnToModeSelect}
-              selectedCategory={selectedCategory} // Pass the selected category
-            />
-          )}
-          {gameState === 'category' && (
-            <CategorySelect 
-              onSelect={handleCategorySelect}
-              mode={currentMode}
-              onBack={handleReturnToModeSelect}
-            />
-          )}
-          {gameState === 'loading' && (
-            <div className="min-h-screen bg-background p-4 flex items-center justify-center">
-              <div className="text-white text-center p-8">
-                <h2 className="text-2xl font-bold mb-4">Loading Quiz...</h2>
-                <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
-                  <div className="h-2 bg-green-500 rounded-full animate-pulse w-1/2"></div>
+        <Routes>
+          {/* Static pages with their own routes */}
+          <Route path="/faq" element={<FAQPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          
+          {/* Main game flow handled by state */}
+          <Route path="*" element={
+            <div className="min-h-screen bg-[#1a1a1a]">
+              {gameState === 'home' && (
+                <Home onStart={handleHomeStart} />
+              )}
+              {gameState === 'welcome' && (
+                <WelcomeScreen onStart={handleStart} />
+              )}
+              {gameState === 'invite' && (
+                <InviteSystem 
+                  onJoinSuccess={handleInviteSuccess} 
+                  onBackToMode={handleReturnToModeSelect}
+                  selectedCategory={selectedCategory} // Pass the selected category
+                />
+              )}
+              {gameState === 'category' && (
+                <CategorySelect 
+                  onSelect={handleCategorySelect}
+                  mode={currentMode}
+                  onBack={handleReturnToModeSelect}
+                />
+              )}
+              {gameState === 'loading' && (
+                <div className="min-h-screen bg-background p-4 flex items-center justify-center">
+                  <div className="text-white text-center p-8">
+                    <h2 className="text-2xl font-bold mb-4">Loading Quiz...</h2>
+                    <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+                      <div className="h-2 bg-green-500 rounded-full animate-pulse w-1/2"></div>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
+              {gameState === 'lobby' && currentMode === '1v1' && (
+                <MultiplayerLobby 
+                  onBackToCategory={handleBackToCategory}
+                  onBackToMode={handleReturnToModeSelect}
+                />
+              )}
+              {/* Use a stable key to prevent unnecessary remounting of QuizGame */}
+              {gameState === 'game' && (
+                <QuizGame 
+                  key={`game-${currentMode}-${soloPlayers[0]?.id || 'solo'}`}
+                  mode={currentMode} 
+                  onBackToCategory={handleBackToCategory}
+                  onBackToMode={handleReturnToModeSelect}
+                />
+              )}
+              {gameState === 'results' && (
+                currentMode === 'solo' ? (
+                  <SoloResultsScreen onPlayAgain={handlePlayAgain} onHome={handleReturnToModeSelect} />
+                ) : (
+                  <OneVsOneResultsScreen 
+                    onPlayAgain={handle1v1Rematch} 
+                    onHome={handleReturnToModeSelect} 
+                  />
+                )
+              )}
             </div>
-          )}
-          {gameState === 'lobby' && currentMode === '1v1' && (
-            <MultiplayerLobby 
-              onBackToCategory={handleBackToCategory}
-              onBackToMode={handleReturnToModeSelect}
-            />
-          )}
-          {/* Use a stable key to prevent unnecessary remounting of QuizGame */}
-          {gameState === 'game' && (
-            <QuizGame 
-              key={`game-${currentMode}-${soloPlayers[0]?.id || 'solo'}`}
-              mode={currentMode} 
-              onBackToCategory={handleBackToCategory}
-              onBackToMode={handleReturnToModeSelect}
-            />
-          )}
-          {gameState === 'results' && (
-            currentMode === 'solo' ? (
-              <SoloResultsScreen onPlayAgain={handlePlayAgain} onHome={handleReturnToModeSelect} />
-            ) : (
-              <OneVsOneResultsScreen 
-                onPlayAgain={handle1v1Rematch} 
-                onHome={handleReturnToModeSelect} 
-              />
-            )
-          )}
-        </div>
+          } />
+        </Routes>
       </BrowserRouter>
     </ErrorBoundary>
   );

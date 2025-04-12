@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Users, Play, Info, HelpCircle, ChevronDown, ChevronUp, ArrowLeft, ArrowRight, Sparkles, Swords } from 'lucide-react';
+import Footer from './layout/Footer'; // Import the new Footer component
 
 // --- Data Definitions ---
-
-
 
 // Example Questions for the carousel
 const exampleQuestions = [
@@ -514,21 +513,6 @@ const HowToPlay = () => {
   );
 };
 
-/**
- * Footer Component
- */
-const Footer = () => (
-  <motion.div
-    initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.3 }}
-    className="mt-16 pb-8 text-center"
-  >
-    <p className="text-gray-500 text-xs">
-      © {new Date().getFullYear()} SportIQ - v2.0.14 - The Ultimate Sports Trivia Challenge {/* Updated version */}
-    </p>
-  </motion.div>
-);
-
-
 // --- Main Component ---
 
 const EnhancedHomePage = ({ onStart }) => {
@@ -558,7 +542,16 @@ const EnhancedHomePage = ({ onStart }) => {
           handlePlay={handlePlay}
         />
         <HowToPlay />
-        <Footer />
+        
+        {/* Replace the old Footer component with the new imported Footer */}
+        <motion.div 
+          initial={{ opacity: 0 }} 
+          animate={{ opacity: 1 }} 
+          transition={{ delay: 1.3 }}
+          className="mt-16"
+        >
+          <Footer />
+        </motion.div>
       </div>
     </div>
   );
