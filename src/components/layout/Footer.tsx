@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Info, HelpCircle, Mail } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Info, HelpCircle, Mail, ChevronDown, ChevronUp } from 'lucide-react';
+import { HowToPlayContent } from './HowToPlayContent';
 
 const Footer: React.FC = () => {
   const currentYear = new Date().getFullYear();
+  const [showHowToPlay, setShowHowToPlay] = useState(false);
 
   return (
     <motion.footer
@@ -27,8 +29,8 @@ const Footer: React.FC = () => {
           </div>
 
           {/* Navigation links in a row */}
-          <div className="flex items-center gap-8">
-            <Link to="/faq" className="text-gray-300 hover:text-blue-400 transition-colors flex items-center gap-2 group">
+          <div className="flex items-center gap-6 flex-wrap justify-center">
+            <Link to="/faq" className="text-gray-300 hover:text-blue-400 transition-colors flex items-center gap-2 group cursor-pointer">
               <motion.div
                 whileHover={{ rotate: 15, scale: 1.1 }}
                 transition={{ type: "spring", stiffness: 400, damping: 10 }}
@@ -38,7 +40,7 @@ const Footer: React.FC = () => {
               <span>FAQ</span>
             </Link>
             
-            <Link to="/about" className="text-gray-300 hover:text-blue-400 transition-colors flex items-center gap-2 group">
+            <Link to="/about" className="text-gray-300 hover:text-blue-400 transition-colors flex items-center gap-2 group cursor-pointer">
               <motion.div
                 whileHover={{ rotate: 15, scale: 1.1 }}
                 transition={{ type: "spring", stiffness: 400, damping: 10 }}
@@ -48,7 +50,7 @@ const Footer: React.FC = () => {
               <span>About</span>
             </Link>
             
-            <a href="mailto:contact@sportiq.games" className="text-gray-300 hover:text-blue-400 transition-colors flex items-center gap-2 group">
+            <a href="mailto:contact@sportiq.games" className="text-gray-300 hover:text-blue-400 transition-colors flex items-center gap-2 group cursor-pointer">
               <motion.div
                 whileHover={{ rotate: 15, scale: 1.1 }}
                 transition={{ type: "spring", stiffness: 400, damping: 10 }}
@@ -57,8 +59,39 @@ const Footer: React.FC = () => {
               </motion.div>
               <span>Contact</span>
             </a>
+            
+            <button
+              onClick={() => setShowHowToPlay(!showHowToPlay)}
+              className="text-gray-300 hover:text-blue-400 transition-colors flex items-center gap-2 group cursor-pointer"
+            >
+              <motion.div
+                whileHover={{ rotate: 15, scale: 1.1 }}
+                transition={{ type: "spring", stiffness: 400, damping: 10 }}
+              >
+                <HelpCircle size={16} className="text-blue-400 group-hover:text-blue-300" />
+              </motion.div>
+              <span>How To Play</span>
+              <motion.div animate={{ rotate: showHowToPlay ? 180 : 0 }}>
+                {showHowToPlay ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </motion.div>
+            </button>
           </div>
         </div>
+
+        {/* How To Play section */}
+        <AnimatePresence>
+          {showHowToPlay && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+              className="mb-6 overflow-hidden"
+            >
+              <HowToPlayContent />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Divider */}
         <div className="h-px w-full bg-gradient-to-r from-transparent via-gray-700 to-transparent mb-4"></div>

@@ -160,7 +160,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
         animate={{ opacity: 1 }}
         transition={{ delay: 0.3 }}
         onClick={() => setShowHowItWorks(!showHowItWorks)}
-        className="flex items-center gap-1 text-blue-400 hover:text-blue-300 mb-4 text-sm"
+        className="flex items-center gap-1 text-blue-400 hover:text-blue-300 mb-4 text-sm cursor-pointer"
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
       >
@@ -218,7 +218,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
             whileHover={{ scale: 1.02, y: -5 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => handleModeSelect('solo')}
-            className={`flex flex-col items-center gap-3 relative z-10 ${selectedMode === 'solo' ? 'ring-2 ring-green-400 rounded-xl p-2' : ''}`}
+            className={`flex flex-col items-center gap-3 relative z-10 cursor-pointer ${selectedMode === 'solo' ? 'ring-2 ring-green-400 rounded-xl p-2' : ''}`}
           >
             <motion.div
               variants={iconAnimation}
@@ -251,7 +251,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
             onClick={(e) => handleLearnMore('solo', e)}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className={`absolute bottom-3 left-0 right-0 mx-auto w-3/4 py-2 px-4 rounded-lg ${modeInfo['solo'].btnBgColor} ${modeInfo['solo'].btnHoverColor} ${modeInfo['solo'].color} font-medium text-sm flex items-center justify-center gap-2 border ${modeInfo['solo'].borderColor} transition-colors`}
+            className={`absolute bottom-3 left-0 right-0 mx-auto w-3/4 py-2 px-4 rounded-lg ${modeInfo['solo'].btnBgColor} ${modeInfo['solo'].btnHoverColor} ${modeInfo['solo'].color} font-medium text-sm flex items-center justify-center gap-2 border ${modeInfo['solo'].borderColor} transition-colors cursor-pointer`}
           >
             <Info size={16} />
             {activeInfoPanel === 'solo' ? 'Hide Details' : 'Learn More'}
@@ -272,7 +272,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
             whileHover={{ scale: 1.02, y: -5 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => handleModeSelect('create')}
-            className={`flex flex-col items-center gap-3 relative z-10 ${selectedMode === 'create' ? 'ring-2 ring-blue-400 rounded-xl p-2' : ''}`}
+            className={`flex flex-col items-center gap-3 relative z-10 cursor-pointer ${selectedMode === 'create' ? 'ring-2 ring-blue-400 rounded-xl p-2' : ''}`}
           >
             <motion.div
               variants={iconAnimation}
@@ -305,7 +305,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
             onClick={(e) => handleLearnMore('create', e)}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className={`absolute bottom-3 left-0 right-0 mx-auto w-3/4 py-2 px-4 rounded-lg ${modeInfo['create'].btnBgColor} ${modeInfo['create'].btnHoverColor} ${modeInfo['create'].color} font-medium text-sm flex items-center justify-center gap-2 border ${modeInfo['create'].borderColor} transition-colors`}
+            className={`absolute bottom-3 left-0 right-0 mx-auto w-3/4 py-2 px-4 rounded-lg ${modeInfo['create'].btnBgColor} ${modeInfo['create'].btnHoverColor} ${modeInfo['create'].color} font-medium text-sm flex items-center justify-center gap-2 border ${modeInfo['create'].borderColor} transition-colors cursor-pointer`}
           >
             <Info size={16} />
             {activeInfoPanel === 'create' ? 'Hide Details' : 'Learn More'}
@@ -326,7 +326,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
             whileHover={{ scale: 1.02, y: -5 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => handleModeSelect('join')}
-            className={`flex flex-col items-center gap-3 relative z-10 ${selectedMode === 'join' ? 'ring-2 ring-purple-400 rounded-xl p-2' : ''}`}
+            className={`flex flex-col items-center gap-3 relative z-10 cursor-pointer ${selectedMode === 'join' ? 'ring-2 ring-purple-400 rounded-xl p-2' : ''}`}
           >
             <motion.div
               variants={iconAnimation}
@@ -359,7 +359,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
             onClick={(e) => handleLearnMore('join', e)}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className={`absolute bottom-3 left-0 right-0 mx-auto w-3/4 py-2 px-4 rounded-lg ${modeInfo['join'].btnBgColor} ${modeInfo['join'].btnHoverColor} ${modeInfo['join'].color} font-medium text-sm flex items-center justify-center gap-2 border ${modeInfo['join'].borderColor} transition-colors`}
+            className={`absolute bottom-3 left-0 right-0 mx-auto w-3/4 py-2 px-4 rounded-lg ${modeInfo['join'].btnBgColor} ${modeInfo['join'].btnHoverColor} ${modeInfo['join'].color} font-medium text-sm flex items-center justify-center gap-2 border ${modeInfo['join'].borderColor} transition-colors cursor-pointer`}
           >
             <Info size={16} />
             {activeInfoPanel === 'join' ? 'Hide Details' : 'Learn More'}

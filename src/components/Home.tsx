@@ -468,50 +468,7 @@ const LoginArea = ({ username, setUsername, error, setError, handlePlay }) => {
   );
 };
 
-/**
- * How To Play Section Component
- */
-const HowToPlay = () => {
-  const [showHowToPlay, setShowHowToPlay] = useState(false);
 
-  return (
-    <motion.div
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.2 }}
-      className="text-center mt-10"
-    >
-      <button
-        onClick={() => setShowHowToPlay(!showHowToPlay)}
-        className="flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors mx-auto text-sm font-medium"
-      >
-        <HelpCircle size={16} />
-        <span>{showHowToPlay ? "Hide Guide" : "How To Play"}</span>
-        <motion.div animate={{ rotate: showHowToPlay ? 180 : 0 }}><ChevronDown size={16} /></motion.div>
-      </button>
-      <AnimatePresence>
-        {showHowToPlay && (
-          <motion.div
-            initial={{ height: 0, opacity: 0, marginTop: 0 }}
-            animate={{ height: "auto", opacity: 1, marginTop: '1rem' }}
-            exit={{ height: 0, opacity: 0, marginTop: 0 }}
-            transition={{ duration: 0.3, ease: "easeInOut" }}
-            className="overflow-hidden"
-          >
-            <div className="mx-auto max-w-xl bg-gray-800/60 backdrop-blur-sm rounded-xl p-5 text-left border border-gray-700/50">
-              <h3 className="text-white font-semibold mb-3 text-center text-lg">Quick Guide</h3>
-              <ol className="space-y-2 list-decimal list-inside text-sm text-gray-300 marker:text-blue-400">
-                <li>Enter your username above and hit 'Test Your SportIQ'.</li>
-                <li>Select your preferred game mode (Solo or 1v1).</li>
-                <li>Choose a sports category that interests you.</li>
-                <li>Answer 10 questions as quickly and accurately as possible.</li>
-                <li>Earn points for correct answers & speed bonuses. Check the leaderboard!</li>
-              </ol>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  );
-};
 
 // --- Main Component ---
 
@@ -541,7 +498,7 @@ const EnhancedHomePage = ({ onStart }) => {
           setError={setError}
           handlePlay={handlePlay}
         />
-        <HowToPlay />
+   
         
         {/* Replace the old Footer component with the new imported Footer */}
         <motion.div 

@@ -44,7 +44,7 @@ export const GameModeCard = ({
         {/* Card content */}
         <motion.div
           onClick={() => onClick(mode)}
-          className="flex flex-col items-center gap-3 relative z-10"
+          className="flex flex-col items-center gap-3 relative z-10 cursor-pointer"
         >
           <motion.div
             className={`w-16 h-16 flex items-center justify-center bg-gradient-to-br from-${primaryColor}-600 to-${secondaryColor}-400 rounded-full mb-2`}
