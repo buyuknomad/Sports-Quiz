@@ -1,8 +1,10 @@
-// Enhanced game store with correct answers tracking and removed multiplayer logic
+// Enhanced game store with correct answers tracking, user auth and result saving
 import { create } from 'zustand';
 import { nanoid } from 'nanoid';
 import { fetchQuestions } from '../lib/supabase-client';
+import { saveGameResults } from '../services/GameResultsService';
 import type { GameState, GameMode, Category, Player, Question, ChatMessage, GameStore } from '../types';
+import { supabase } from '../lib/supabase-client';
 
 const initialState: GameState = {
   gameId: '',
@@ -32,7 +34,9 @@ const initialState: GameState = {
   nextQuestionPending: null,
   lastSyncTime: Date.now(),
   questionStartTime: Date.now(),
-  socket: null
+  socket: null,
+  // Add tracking of answers for each question
+  userAnswers: []
 };
 
 export const useGameStore = create<GameStore>((set, get) => {
@@ -42,8 +46,20 @@ export const useGameStore = create<GameStore>((set, get) => {
     if (transitionTimeout) clearTimeout(transitionTimeout);
   };
 
+  // Function to get current user from Supabase
+  const getCurrentUser = async () => {
+    try {
+      const { data } = await supabase.auth.getUser();
+      return data.user;
+    } catch (error) {
+      console.error('Error getting current user:', error);
+      return null;
+    }
+  };
+
   return {
     ...initialState,
+    userAnswers: [],
 
     resetGame: () => {
       clearTimeouts();
@@ -51,7 +67,8 @@ export const useGameStore = create<GameStore>((set, get) => {
         ...initialState,
         startTime: Date.now(),
         questionStartTime: Date.now(),
-        currentPlayerId: nanoid()
+        currentPlayerId: nanoid(),
+        userAnswers: []
       });
     },
 
@@ -72,7 +89,8 @@ export const useGameStore = create<GameStore>((set, get) => {
         startTime: Date.now(),
         questionStartTime: Date.now(),
         waitingForPlayers: false,
-        isGameStarted: false
+        isGameStarted: false,
+        userAnswers: []
       });
     },
 
@@ -146,6 +164,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           selectedAnswer: null,
           isAnswerChecked: false,
           isCorrect: false,
+          userAnswers: [],
           scores: new Map([[state.currentPlayerId, 0]]),
           players: state.players.map(p => ({
             ...p,
@@ -180,7 +199,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
     },
 
-    endGame: () => {
+    endGame: async () => {
       const state = get();
       if (state.mode === 'solo') {
         const endTime = Date.now();
@@ -191,6 +210,45 @@ export const useGameStore = create<GameStore>((set, get) => {
           isGameEnded: true,
           completionTime: totalTime
         });
+        
+        // Try to get the current authenticated user
+        const user = await getCurrentUser();
+        
+        // If user is logged in, save the results
+        if (user) {
+          const currentPlayer = state.players[0];
+          
+          if (currentPlayer) {
+            const correctAnswers = currentPlayer.correctAnswers || 0;
+            
+            // Prepare question details for saving
+            const questionDetails = state.userAnswers.map(answer => ({
+              questionId: answer.questionId,
+              userAnswer: answer.answer,
+              isCorrect: answer.isCorrect,
+              responseTime: answer.responseTime
+            }));
+            
+            // Save the results to the database
+            try {
+              await saveGameResults({
+                userId: user.id,
+                mode: state.mode,
+                category: state.category,
+                score: currentPlayer.score,
+                correctAnswers,
+                totalQuestions: state.questions.length,
+                completionTime: totalTime,
+                questionDetails
+              });
+              console.log('Game results saved successfully');
+            } catch (error) {
+              console.error('Failed to save game results:', error);
+            }
+          }
+        } else {
+          console.log('User not logged in, skipping result saving');
+        }
       }
     },
 
@@ -224,11 +282,24 @@ export const useGameStore = create<GameStore>((set, get) => {
       const currentQ = state.questions[state.currentQuestion];
       const isCorrect = currentQ.correctAnswer === answer;
 
+      // Save answer details for history and analytics
+      const answerData = {
+        questionId: currentQ.id,
+        questionIndex: state.currentQuestion,
+        question: currentQ.question,
+        answer,
+        correctAnswer: currentQ.correctAnswer,
+        isCorrect,
+        responseTime,
+        timestamp: Date.now()
+      };
+
       if (state.mode === 'solo') {
         set(state => ({
           ...state,
           questionResponseTimes: newResponseTimes,
           scores: new Map(state.scores).set(currentPlayer.id, totalScore),
+          userAnswers: [...state.userAnswers, answerData],
           players: state.players.map(p => 
             p.id === currentPlayer.id 
               ? { 
@@ -249,13 +320,13 @@ export const useGameStore = create<GameStore>((set, get) => {
             set({
               currentQuestion: currentState.currentQuestion + 1,
               timeRemaining: 15,
-              isTransitioning: false
+              isTransitioning: false,
+              selectedAnswer: null,
+              isAnswerChecked: false,
+              isCorrect: false
             });
           } else {
-            set({
-              isGameEnded: true,
-              completionTime: (Date.now() - currentState.startTime) / 1000
-            });
+            get().endGame();
           }
         }, 2000);
       }

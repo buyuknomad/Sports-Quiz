@@ -1,7 +1,10 @@
+// Enhanced Home component with authentication integration
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Users, Play, Info, HelpCircle, ChevronDown, ChevronUp, ArrowLeft, ArrowRight, Sparkles, Swords } from 'lucide-react';
-import Footer from './layout/Footer'; // Import the new Footer component
+import Footer from './layout/Footer';
+import AuthNavBar from './auth/AuthNavBar';
+import { useAuth } from '../contexts/AuthContext';
 
 // --- Data Definitions ---
 
@@ -364,11 +367,12 @@ const GameModeSelection = () => (
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.6 + index * 0.1 }}
           whileHover={{ y: -5, scale: 1.02, boxShadow: "0 10px 20px rgba(0, 0, 0, 0.3)", transition: { duration: 0.2 } }}
-          className="relative bg-gray-800/70 backdrop-blur-md rounded-xl p-6 overflow-hidden group border border-gray-700/50 cursor-default"
+          className="relative bg-gray-800/70 backdrop-blur-md rounded-xl p-6 pb-14 overflow-hidden group cursor-default"
         >
           <motion.div
             className={`absolute inset-0 bg-gradient-to-br ${mode.hoverGradient} opacity-0 group-hover:opacity-10 transition-opacity duration-300`}
           />
+          
           <div className="flex flex-col items-center gap-3 relative z-10 text-center">
               <motion.div
                 variants={iconAnimation}
@@ -405,9 +409,9 @@ const GameModeSelection = () => (
 
 
 /**
- * Login Area Component - Removed Animated Line
+ * Login Area Component with Auth Integration
  */
-const LoginArea = ({ username, setUsername, error, setError, handlePlay }) => {
+const LoginArea = ({ username, setUsername, error, setError, handlePlay, isLoggedIn }) => {
   const [isInputFocused, setIsInputFocused] = useState(false);
 
   return (
@@ -416,6 +420,7 @@ const LoginArea = ({ username, setUsername, error, setError, handlePlay }) => {
       className="max-w-md mx-auto bg-gray-800/80 backdrop-blur-lg rounded-2xl p-6 md:p-8 shadow-xl border border-gray-700/50"
     >
       <h2 className="text-2xl font-bold text-white mb-6 text-center">Enter The Arena</h2>
+      
       {/* Container for shaking */}
       <motion.div
         className="relative mb-6"
@@ -423,7 +428,7 @@ const LoginArea = ({ username, setUsername, error, setError, handlePlay }) => {
         animate={error ? "shake" : ""}
       >
         {/* Input field container */}
-        {/* Border color changes on focus/error */}
+        {/* If user is logged in, show readonly username */}
         <div className={`relative border-2 rounded-lg overflow-hidden transition-colors duration-300 ${error ? 'border-red-500' : isInputFocused ? 'border-blue-500' : 'border-gray-600'}`}>
           <input
             id="usernameInput"
@@ -432,14 +437,11 @@ const LoginArea = ({ username, setUsername, error, setError, handlePlay }) => {
             onChange={(e) => { setUsername(e.target.value); setError(false); }}
             onFocus={() => setIsInputFocused(true)}
             onBlur={() => setIsInputFocused(false)}
-            className="w-full py-3 px-4 text-lg bg-gray-700/50 text-white placeholder-gray-400 focus:outline-none" // Adjusted padding
+            className={`w-full py-3 px-4 text-lg bg-gray-700/50 text-white placeholder-gray-400 focus:outline-none ${isLoggedIn ? 'opacity-80' : ''}`}
             placeholder="Your Username"
+            readOnly={isLoggedIn} // Make readonly if logged in
           />
-          {/* User icon inside */}
           <Users className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={20} />
-
-          {/* --- Animated Focus Indicator Line REMOVED --- */}
-
         </div>
 
         {/* Error message */}
@@ -463,7 +465,13 @@ const LoginArea = ({ username, setUsername, error, setError, handlePlay }) => {
         ><Play size={24} className="fill-white" /></motion.div>
         <span className="relative z-10">TEST YOUR SPORTIQ</span>
       </motion.button>
-      <p className="text-gray-400 text-xs mt-3 text-center">Select game mode on the next screen</p>
+      
+      {/* Show different message based on auth state */}
+      <p className="text-gray-400 text-xs mt-3 text-center">
+        {isLoggedIn 
+          ? "Your progress will be saved to your account" 
+          : "Select game mode on the next screen"}
+      </p>
     </motion.div>
   );
 };
@@ -475,6 +483,14 @@ const LoginArea = ({ username, setUsername, error, setError, handlePlay }) => {
 const EnhancedHomePage = ({ onStart }) => {
   const [username, setUsername] = useState('');
   const [error, setError] = useState(false);
+  const { user, profile } = useAuth(); // Use the auth context to get user state
+  
+  // Automatically use profile username if available
+  useEffect(() => {
+    if (profile?.username) {
+      setUsername(profile.username);
+    }
+  }, [profile]);
 
   const handlePlay = useCallback(() => {
     if (username.trim().length === 0) {
@@ -487,6 +503,9 @@ const EnhancedHomePage = ({ onStart }) => {
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-b from-[#0c1220] to-[#1a1a2e] text-white overflow-x-hidden isolate">
+      {/* Auth NavBar - shows sign in or user dashboard link */}
+      <AuthNavBar />
+      
       <AnimatedBackground />
       <div className="max-w-7xl mx-auto px-4 py-12 md:py-16 relative z-10">
         <HeroSection />
@@ -497,6 +516,7 @@ const EnhancedHomePage = ({ onStart }) => {
           error={error}
           setError={setError}
           handlePlay={handlePlay}
+          isLoggedIn={!!user} // Pass authentication state to LoginArea
         />
    
         

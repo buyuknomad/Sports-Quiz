@@ -106,9 +106,19 @@ if (process.env.NODE_ENV === 'production') {
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ status: 'healthy' });
+  res.json({ status: 'healthy', uptime: process.uptime() });
 });
 
+// Also ensure you're serving the static files properly:
+if (process.env.NODE_ENV === 'production') {
+  // Serve static files
+  app.use(express.static(path.join(__dirname, 'dist')));
+  
+  // For any unknown routes, serve the index.html
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  });
+}
 // Debug endpoint to check server status
 app.get('/status', (req, res) => {
   res.json({

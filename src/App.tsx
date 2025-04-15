@@ -1,4 +1,4 @@
-// App.tsx with enhanced Google Analytics tracking and added routes for FAQ and About pages
+// App.tsx with enhanced Google Analytics tracking and authentication routes
 import React, { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -17,6 +17,17 @@ import { useOneVsOneStore } from './store/oneVsOneStore';
 import type { GameMode, Category } from './types';
 import { clearQuestionCache } from './lib/supabase-client';
 import { useAnalyticsEvent } from './hooks/useAnalyticsEvent';
+
+// Auth Components
+import { AuthProvider } from './contexts/AuthContext';
+import ProtectedRoute from './components/auth/ProtectedRoute';
+import SignUp from './components/auth/SignUp';
+import SignIn from './components/auth/SignIn';
+import EmailVerification from './components/auth/EmailVerification';
+import AuthCallback from './components/auth/AuthCallback';
+import Dashboard from './components/dashboard/Dashboard';
+import GameHistory from './components/dashboard/GameHistory';
+import Settings from './components/dashboard/Settings';
 
 // Enhanced Route Tracker Component for SPA navigation tracking
 const EnhancedRouteTracker = ({ 
@@ -500,80 +511,108 @@ function App() {
   // Render the game app with proper routing
   return (
     <ErrorBoundary>
-      <BrowserRouter>
-        {/* Enhanced Route Tracker for SPA navigation */}
-        <EnhancedRouteTracker 
-          currentView={gameState}
-          additionalParams={analyticsParams}
-        />
-        
-        <Routes>
-          {/* Static pages with their own routes */}
-          <Route path="/faq" element={<FAQPage />} />
-          <Route path="/about" element={<AboutPage />} />
+      <AuthProvider>
+        <BrowserRouter>
+          {/* Enhanced Route Tracker for SPA navigation */}
+          <EnhancedRouteTracker 
+            currentView={gameState}
+            additionalParams={analyticsParams}
+          />
           
-          {/* Main game flow handled by state */}
-          <Route path="*" element={
-            <div className="min-h-screen bg-[#1a1a1a]">
-              {gameState === 'home' && (
-                <Home onStart={handleHomeStart} />
-              )}
-              {gameState === 'welcome' && (
-                <WelcomeScreen onStart={handleStart} />
-              )}
-              {gameState === 'invite' && (
-                <InviteSystem 
-                  onJoinSuccess={handleInviteSuccess} 
-                  onBackToMode={handleReturnToModeSelect}
-                  selectedCategory={selectedCategory} // Pass the selected category
-                />
-              )}
-              {gameState === 'category' && (
-                <CategorySelect 
-                  onSelect={handleCategorySelect}
-                  mode={currentMode}
-                  onBack={handleReturnToModeSelect}
-                />
-              )}
-              {gameState === 'loading' && (
-                <div className="min-h-screen bg-background p-4 flex items-center justify-center">
-                  <div className="text-white text-center p-8">
-                    <h2 className="text-2xl font-bold mb-4">Loading Quiz...</h2>
-                    <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
-                      <div className="h-2 bg-green-500 rounded-full animate-pulse w-1/2"></div>
+          <Routes>
+            {/* Authentication Routes */}
+            <Route path="/auth/signup" element={<SignUp />} />
+            <Route path="/auth/signin" element={<SignIn />} />
+            <Route path="/auth/verification" element={<EmailVerification />} />
+            
+            {/* Protected Dashboard Routes */}
+            <Route path="/dashboard" element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/history" element={
+              <ProtectedRoute>
+                <GameHistory />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/settings" element={
+              <ProtectedRoute>
+                <Settings />
+              </ProtectedRoute>
+            } />
+
+  <Route path="/auth/callback" element={<AuthCallback />} />
+            
+            {/* Static pages with their own routes */}
+            <Route path="/faq" element={<FAQPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            
+            {/* Main game flow handled by state */}
+            <Route path="*" element={
+              <div className="min-h-screen bg-[#1a1a1a]">
+                {gameState === 'home' && (
+                  <Home onStart={handleHomeStart} />
+                )}
+                {gameState === 'welcome' && (
+                  <WelcomeScreen onStart={handleStart} />
+                )}
+                {gameState === 'invite' && (
+                  <InviteSystem 
+                    onJoinSuccess={handleInviteSuccess} 
+                    onBackToMode={handleReturnToModeSelect}
+                    selectedCategory={selectedCategory} // Pass the selected category
+                  />
+                )}
+                {gameState === 'category' && (
+                  <CategorySelect 
+                    onSelect={handleCategorySelect}
+                    mode={currentMode}
+                    onBack={handleReturnToModeSelect}
+                  />
+                )}
+                {gameState === 'loading' && (
+                  <div className="min-h-screen bg-background p-4 flex items-center justify-center">
+                    <div className="text-white text-center p-8">
+                      <h2 className="text-2xl font-bold mb-4">Loading Quiz...</h2>
+                      <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+                        <div className="h-2 bg-green-500 rounded-full animate-pulse w-1/2"></div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
-              {gameState === 'lobby' && currentMode === '1v1' && (
-                <MultiplayerLobby 
-                  onBackToCategory={handleBackToCategory}
-                  onBackToMode={handleReturnToModeSelect}
-                />
-              )}
-              {/* Use a stable key to prevent unnecessary remounting of QuizGame */}
-              {gameState === 'game' && (
-                <QuizGame 
-                  key={`game-${currentMode}-${soloPlayers[0]?.id || 'solo'}`}
-                  mode={currentMode} 
-                  onBackToCategory={handleBackToCategory}
-                  onBackToMode={handleReturnToModeSelect}
-                />
-              )}
-              {gameState === 'results' && (
-                currentMode === 'solo' ? (
-                  <SoloResultsScreen onPlayAgain={handlePlayAgain} onHome={handleReturnToModeSelect} />
-                ) : (
-                  <OneVsOneResultsScreen 
-                    onPlayAgain={handle1v1Rematch} 
-                    onHome={handleReturnToModeSelect} 
+                )}
+                {gameState === 'lobby' && currentMode === '1v1' && (
+                  <MultiplayerLobby 
+                    onBackToCategory={handleBackToCategory}
+                    onBackToMode={handleReturnToModeSelect}
                   />
-                )
-              )}
-            </div>
-          } />
-        </Routes>
-      </BrowserRouter>
+                )}
+                {/* Use a stable key to prevent unnecessary remounting of QuizGame */}
+                {gameState === 'game' && (
+                  <QuizGame 
+                    key={`game-${currentMode}-${soloPlayers[0]?.id || 'solo'}`}
+                    mode={currentMode} 
+                    onBackToCategory={handleBackToCategory}
+                    onBackToMode={handleReturnToModeSelect}
+                  />
+                )}
+                {gameState === 'results' && (
+                  currentMode === 'solo' ? (
+                    <SoloResultsScreen onPlayAgain={handlePlayAgain} onHome={handleReturnToModeSelect} />
+                  ) : (
+                    <OneVsOneResultsScreen 
+                      onPlayAgain={handle1v1Rematch} 
+                      onHome={handleReturnToModeSelect} 
+                    />
+                  )
+                )}
+              </div>
+            } />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
     </ErrorBoundary>
   );
 }

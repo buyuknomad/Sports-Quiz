@@ -1,5 +1,5 @@
-// Client-side Supabase configuration with improved error handling
-import { createClient } from '@supabase/supabase-js';
+// Client-side Supabase configuration with authentication functions
+import { createClient, Session, User } from '@supabase/supabase-js';
 import type { Database } from './database.types';
 import type { Category } from '../types';
 
@@ -33,6 +33,96 @@ export const supabase = createClient<Database>(
   }
 );
 
+// Determine app URL based on current environment
+export const getAppUrl = () => {
+  const hostname = window.location.hostname;
+  
+  // Netlify testing deployment
+  if (hostname.includes('netlify.app')) {
+    return 'https://' + hostname;
+  }
+  
+  // Render production deployment
+  if (hostname.includes('onrender.com')) {
+    return 'https://' + hostname;
+  }
+  
+  // Custom domain, if you have one
+  if (hostname === 'sportiq.games' || hostname === 'www.sportiq.games') {
+    return 'https://' + hostname;
+  }
+  
+  // Local development
+  return window.location.origin;
+};
+
+// Authentication Functions
+export const signUp = async (email: string, password: string, username: string) => {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        display_name: username
+      }
+    }
+  });
+  return { data, error };
+};
+
+export const signIn = async (email: string, password: string) => {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+  return { data, error };
+};
+
+export const signOut = async () => {
+  const { error } = await supabase.auth.signOut();
+  return { error };
+};
+
+export const signInWithGoogle = async () => {
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: `${getAppUrl()}/auth/callback`
+    }
+  });
+  return { data, error };
+};
+
+export const resetPassword = async (email: string) => {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${getAppUrl()}/auth/reset-password`,
+  });
+  return { error };
+};
+
+export const updatePassword = async (newPassword: string) => {
+  const { error } = await supabase.auth.updateUser({
+    password: newPassword
+  });
+  return { error };
+};
+
+export const getSession = async () => {
+  const { data, error } = await supabase.auth.getSession();
+  return { data, error };
+};
+
+export const getCurrentUser = async () => {
+  const { data, error } = await supabase.auth.getUser();
+  return { data, error };
+};
+
+export const onAuthStateChange = (callback: (session: Session | null) => void) => {
+  return supabase.auth.onAuthStateChange((_, session) => {
+    callback(session);
+  });
+};
+
 // Cache for questions
 const questionCache = new Map<string, any>();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -63,6 +153,20 @@ const fallbackQuestions = {
       question: 'Which team has won the most UEFA Champions League titles?',
       options: ['Real Madrid', 'AC Milan', 'Bayern Munich', 'Liverpool'],
       correctAnswer: 'Real Madrid'
+    },
+    {
+      id: 'fb4',
+      category: 'football',
+      question: 'Which player has won the most Ballon d\'Or awards?',
+      options: ['Cristiano Ronaldo', 'Lionel Messi', 'Michel Platini', 'Johan Cruyff'],
+      correctAnswer: 'Lionel Messi'
+    },
+    {
+      id: 'fb5',
+      category: 'football',
+      question: 'Which club has won the most Premier League titles?',
+      options: ['Liverpool', 'Arsenal', 'Chelsea', 'Manchester United'],
+      correctAnswer: 'Manchester United'
     }
   ],
   basketball: [
@@ -86,6 +190,20 @@ const fallbackQuestions = {
       question: 'Who is the NBA\'s all-time leading scorer?',
       options: ['Kareem Abdul-Jabbar', 'LeBron James', 'Michael Jordan', 'Karl Malone'],
       correctAnswer: 'LeBron James'
+    },
+    {
+      id: 'bb4',
+      category: 'basketball',
+      question: 'Which player has the most NBA MVP awards?',
+      options: ['Michael Jordan', 'Kareem Abdul-Jabbar', 'LeBron James', 'Bill Russell'],
+      correctAnswer: 'Kareem Abdul-Jabbar'
+    },
+    {
+      id: 'bb5',
+      category: 'basketball',
+      question: 'How many points is a standard field goal worth in basketball?',
+      options: ['1', '2', '3', '4'],
+      correctAnswer: '2'
     }
   ],
   tennis: [
@@ -109,6 +227,20 @@ const fallbackQuestions = {
       question: 'Who holds the record for most Wimbledon singles titles?',
       options: ['Roger Federer', 'Novak Djokovic', 'Pete Sampras', 'Björn Borg'],
       correctAnswer: 'Roger Federer'
+    },
+    {
+      id: 'tn4',
+      category: 'tennis',
+      question: 'Which of these players is known as the "King of Clay"?',
+      options: ['Andy Murray', 'Roger Federer', 'Rafael Nadal', 'Novak Djokovic'],
+      correctAnswer: 'Rafael Nadal'
+    },
+    {
+      id: 'tn5',
+      category: 'tennis',
+      question: 'How many Grand Slam singles titles has Serena Williams won?',
+      options: ['20', '23', '25', '19'],
+      correctAnswer: '23'
     }
   ],
   olympics: [
@@ -132,6 +264,20 @@ const fallbackQuestions = {
       question: 'Which country has won the most Summer Olympic medals?',
       options: ['Soviet Union', 'United States', 'China', 'Germany'],
       correctAnswer: 'United States'
+    },
+    {
+      id: 'ol4',
+      category: 'olympics',
+      question: 'Which of these sports is NOT in the Summer Olympics?',
+      options: ['Archery', 'Cricket', 'Skateboarding', 'Breakdancing'],
+      correctAnswer: 'Cricket'
+    },
+    {
+      id: 'ol5',
+      category: 'olympics',
+      question: 'In which year were the first modern Olympic Games held?',
+      options: ['1886', '1896', '1900', '1904'],
+      correctAnswer: '1896'
     }
   ],
   mixed: [
@@ -155,6 +301,20 @@ const fallbackQuestions = {
       question: 'What is the diameter of a basketball hoop in inches?',
       options: ['16 inches', '18 inches', '20 inches', '24 inches'],
       correctAnswer: '18 inches'
+    },
+    {
+      id: 'mx4',
+      category: 'mixed',
+      question: 'Which of these sports does NOT use a ball?',
+      options: ['Hockey', 'Polo', 'Volleyball', 'Badminton'],
+      correctAnswer: 'Badminton'
+    },
+    {
+      id: 'mx5',
+      category: 'mixed',
+      question: 'How many players are there in a standard baseball team?',
+      options: ['9', '11', '5', '7'],
+      correctAnswer: '9'
     }
   ]
 };
@@ -259,7 +419,7 @@ export async function fetchQuestions(category: Category) {
       const questions = data
         .map(q => ({
           id: q.id,
-          category: q.category as Category, // Keep the original category from the database
+          category: q.category as Category, 
           question: q.question,
           options: q.options,
           correctAnswer: q.correct_answer
@@ -303,3 +463,88 @@ export function clearQuestionCache() {
   questionCache.clear();
   console.log('Question cache cleared');
 }
+
+// Profile management functions
+export const getUserProfile = async (userId: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+      
+    if (error) throw error;
+    
+    return { data, error: null };
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    return { data: null, error };
+  }
+};
+
+export const updateUserProfile = async (userId: string, updates: { username?: string, avatar_url?: string }) => {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', userId)
+      .select()
+      .single();
+      
+    if (error) throw error;
+    
+    return { data, error: null };
+  } catch (error) {
+    console.error('Error updating user profile:', error);
+    return { data: null, error };
+  }
+};
+
+// Game history functions
+export const getGameHistory = async (userId: string, limit = 10) => {
+  try {
+    const { data, error } = await supabase
+      .from('game_sessions')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+      
+    if (error) throw error;
+    
+    return { data, error: null };
+  } catch (error) {
+    console.error('Error fetching game history:', error);
+    return { data: null, error };
+  }
+};
+
+export const getGameDetails = async (gameId: string) => {
+  try {
+    const { data: gameData, error: gameError } = await supabase
+      .from('game_sessions')
+      .select('*')
+      .eq('id', gameId)
+      .single();
+      
+    if (gameError) throw gameError;
+    
+    const { data: answersData, error: answersError } = await supabase
+      .from('user_answers')
+      .select('*, questions(*)')
+      .eq('game_session_id', gameId);
+      
+    if (answersError) throw answersError;
+    
+    return { 
+      game: gameData, 
+      answers: answersData,
+      error: null
+    };
+  } catch (error) {
+    console.error('Error fetching game details:', error);
+    return { game: null, answers: null, error };
+  }
+};
+
+export default supabase;

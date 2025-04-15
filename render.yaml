@@ -17,6 +17,10 @@ services:
         sync: false
     healthCheckPath: /health
     autoDeploy: true
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
     disk:
       name: tmp
       mountPath: /tmp
