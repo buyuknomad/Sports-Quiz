@@ -65,7 +65,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
     console.log('Navigation source:', source);
     
     // Show back button if we came from dashboard OR any other source except direct/home
-    const showBack = source && source !== 'direct' && source !== 'home';
+    const showBack = source && source !== 'direct' && ;
     setShowBackToHome(showBack);
     
   }, [location.pathname]);
