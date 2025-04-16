@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Swords, UserPlus, Info, HelpCircle, ChevronDown, ChevronUp, Home } from 'lucide-react';
+import { Trophy, Swords, UserPlus, Info, HelpCircle, Home, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
 import { NavigationButton } from './navigation';
@@ -64,8 +64,8 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
     
     console.log('Navigation source:', source);
     
-    // Show back button only if we came from dashboard
-    const showBack = source === 'dashboard';
+    // Show back button if we came from dashboard OR any other source except direct/home
+    const showBack = source && source !== 'direct' && source !== 'home';
     setShowBackToHome(showBack);
     
   }, [location.pathname]);
