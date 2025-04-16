@@ -229,16 +229,17 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
               
-              <Link to="/" className="block">
-                <motion.button
-                  className="w-full p-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg flex items-center justify-center gap-2"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <Target size={20} />
-                  Play New Quiz
-                </motion.button>
-              </Link>
+          <Link to="/welcome" className="block">
+  <motion.button
+    className="w-full p-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg flex items-center justify-center gap-2"
+    whileHover={{ scale: 1.02 }}
+    whileTap={{ scale: 0.98 }}
+  >
+    <Target size={20} />
+    Play New Quiz
+  </motion.button>
+</Link>
+           
             </div>
           </motion.div>
           
@@ -266,7 +267,7 @@ const Dashboard: React.FC = () => {
             ) : gameHistory.length === 0 ? (
               <div className="bg-gray-700/30 rounded-lg p-6 text-center">
                 <p className="text-gray-400 mb-3">You haven't played any games yet.</p>
-                <Link to="/" className="text-blue-400 hover:text-blue-300">
+                <Link to="/welcome" className="text-blue-400 hover:text-blue-300">
                   Start your first quiz now!
                 </Link>
               </div>
