@@ -161,6 +161,8 @@ const AppContent = () => {
     // Set navigation source before redirecting
     localStorage.setItem('navigationSource', 'home');
     
+    // Always navigate to welcome URL for consistency
+    navigate('/welcome');
     setGameState('welcome');
   };
 
@@ -179,8 +181,10 @@ const AppContent = () => {
         addPlayer(username);
         setGameState('category');
         
-        // If we're on the welcome URL, navigate to home and let the game state handle rendering
+        // Standardize URL behavior - either stay on welcome or go to home
         if (location.pathname === '/welcome') {
+          // Already on welcome route, just update state
+        } else {
           navigate('/');
         }
       } else if (selectedMode === 'create') {
@@ -189,8 +193,10 @@ const AppContent = () => {
         await initialize1v1Game();
         setGameState('category'); // Go to category selection first
         
-        // If we're on the welcome URL, navigate to home and let the game state handle rendering
+        // Standardize URL behavior
         if (location.pathname === '/welcome') {
+          // Already on welcome route, just update state
+        } else {
           navigate('/');
         }
       } else if (selectedMode === 'join') {
@@ -201,8 +207,10 @@ const AppContent = () => {
         localStorage.setItem('showJoinUI', 'true');
         setGameState('invite');
         
-        // If we're on the welcome URL, navigate to home and let the game state handle rendering
+        // Standardize URL behavior
         if (location.pathname === '/welcome') {
+          // Already on welcome route, just update state
+        } else {
           navigate('/');
         }
         
@@ -340,6 +348,9 @@ const AppContent = () => {
     } else {
       // Otherwise go to welcome screen
       setGameState('welcome');
+      
+      // Always navigate to welcome URL for consistency
+      navigate('/welcome');
     }
   };
 
@@ -599,7 +610,7 @@ const AppContent = () => {
     
     setGameState('welcome');
     
-    // Use React Router navigation
+    // Use React Router navigation - always go to welcome path
     navigate('/welcome');
   };
 
