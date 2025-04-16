@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
 import { NavigationButton } from './navigation';
 import { NAVIGATION_LABELS } from '../constants/navigation';
+import AuthNavBar from './auth/AuthNavBar'; // Import AuthNavBar
 
 // Define expanded GameMode type with the new join option
 type GameMode = 'solo' | 'create' | 'join';
@@ -65,7 +66,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
     console.log('Navigation source:', source);
     
     // Show back button if we came from dashboard OR any other source except direct/home
-    const showBack = source && source !== 'direct';
+    const showBack = source && source !== 'direct' && source !== 'home';
     setShowBackToHome(showBack);
     
   }, [location.pathname]);
@@ -130,6 +131,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
   
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-b from-[#0c1220] to-[#1a1a2e]">
+      {/* Add AuthNavBar to the top right */}
+      <AuthNavBar />
+      
       {/* Back to Home button - only show if we came from dashboard */}
       {showBackToHome && (
         <div className="fixed bottom-6 left-6 z-50">
