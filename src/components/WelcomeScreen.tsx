@@ -59,10 +59,15 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
   const [showBackToHome, setShowBackToHome] = useState(false);
   
   useEffect(() => {
-    // If we came from another page (not directly loaded at home),
-    // we should show the back button
-    const cameFromElsewhere = location.pathname === '/welcome';
-    setShowBackToHome(cameFromElsewhere);
+    // Get navigation source to determine if we should show back button
+    const source = localStorage.getItem('navigationSource');
+    
+    console.log('Navigation source:', source);
+    
+    // Show back button only if we came from dashboard
+    const showBack = source === 'dashboard';
+    setShowBackToHome(showBack);
+    
   }, [location.pathname]);
   
   const handleModeSelect = (mode: GameMode) => {
@@ -125,7 +130,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
   
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-b from-[#0c1220] to-[#1a1a2e]">
-      {/* Back to Home button - only show if we came from another page */}
+      {/* Back to Home button - only show if we came from dashboard */}
       {showBackToHome && (
         <div className="fixed bottom-6 left-6 z-50">
           <NavigationButton
