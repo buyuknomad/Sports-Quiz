@@ -23,7 +23,11 @@ interface GameSession {
   result: string | null;
 }
 
-const Dashboard: React.FC = () => {
+interface DashboardProps {
+  onPlayNewQuiz?: () => void; // Add prop for custom navigation
+}
+
+const Dashboard: React.FC<DashboardProps> = ({ onPlayNewQuiz }) => {
   const { user, profile, signOut } = useAuth();
   const [gameHistory, setGameHistory] = useState<GameSession[]>([]);
   const [loading, setLoading] = useState(true);
@@ -134,6 +138,23 @@ const Dashboard: React.FC = () => {
     }).format(date);
   };
 
+  // Handle play new quiz button click
+  const handlePlayNewQuiz = () => {
+    // Save username before navigation
+    if (profile?.username) {
+      localStorage.setItem('username', profile.username);
+    }
+    
+    // Use the provided custom handler if available, otherwise use default navigation
+    if (onPlayNewQuiz) {
+      onPlayNewQuiz();
+    } else {
+      // Set navigation source to dashboard before redirecting
+      localStorage.setItem('navigationSource', 'dashboard');
+      navigate('/welcome');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0c1220] to-[#1a1a2e] p-4 sm:p-6">
       <div className="max-w-6xl mx-auto">
@@ -229,17 +250,16 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
               
-          <Link to="/welcome" className="block">
-  <motion.button
-    className="w-full p-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg flex items-center justify-center gap-2"
-    whileHover={{ scale: 1.02 }}
-    whileTap={{ scale: 0.98 }}
-  >
-    <Target size={20} />
-    Play New Quiz
-  </motion.button>
-</Link>
-           
+              {/* Modified to use onClick handler instead of direct Link */}
+              <motion.button
+                className="w-full p-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg flex items-center justify-center gap-2"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handlePlayNewQuiz}
+              >
+                <Target size={20} />
+                Play New Quiz
+              </motion.button>
             </div>
           </motion.div>
           
@@ -267,9 +287,12 @@ const Dashboard: React.FC = () => {
             ) : gameHistory.length === 0 ? (
               <div className="bg-gray-700/30 rounded-lg p-6 text-center">
                 <p className="text-gray-400 mb-3">You haven't played any games yet.</p>
-                <Link to="/welcome" className="text-blue-400 hover:text-blue-300">
+                <button 
+                  className="text-blue-400 hover:text-blue-300"
+                  onClick={handlePlayNewQuiz}
+                >
                   Start your first quiz now!
-                </Link>
+                </button>
               </div>
             ) : (
               <div className="space-y-4">
