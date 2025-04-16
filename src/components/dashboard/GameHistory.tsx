@@ -306,7 +306,7 @@ const GameHistory: React.FC = () => {
               {searchQuery || modeFilter !== 'all' || categoryFilter !== 'all' ? (
                 <p className="text-gray-500 text-sm">Try adjusting your filters</p>
               ) : (
-                <Link to="/" className="text-blue-400 hover:text-blue-300">
+                <Link to="/welcome" className="text-blue-400 hover:text-blue-300">
                   Play your first game now!
                 </Link>
               )}
