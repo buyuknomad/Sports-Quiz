@@ -96,9 +96,9 @@ const Footer: React.FC = () => {
         {/* Divider */}
         <div className="h-px w-full bg-gradient-to-r from-transparent via-gray-700 to-transparent mb-4"></div>
 
-        {/* Copyright */}
+        {/* Copyright - Updated "Challenge" to "Game" */}
         <div className="text-center text-xs text-gray-500">
-          <p>© {currentYear} SportIQ - The Ultimate Sports Trivia Challenge</p>
+          <p>© {currentYear} SportIQ - The Ultimate Sports Trivia Game</p>
           <p className="mt-1">v2.0.14</p>
         </div>
       </div>
