@@ -1,6 +1,6 @@
 // App.tsx with enhanced Google Analytics tracking and authentication routes
 import React, { useState, useEffect, useCallback } from 'react';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import Home from './components/Home';
 import WelcomeScreen from './components/WelcomeScreen';
@@ -29,44 +29,21 @@ import Dashboard from './components/dashboard/Dashboard';
 import GameHistory from './components/dashboard/GameHistory';
 import Settings from './components/dashboard/Settings';
 
-// Enhanced Route Tracker Component for SPA navigation tracking
-const EnhancedRouteTracker = ({ 
-  currentView, 
-  additionalParams = {} 
-}: { 
-  currentView: string; 
-  additionalParams?: Record<string, any>; 
-}) => {
-  const location = useLocation();
-  const { trackPageView, trackEvent } = useAnalyticsEvent();
-
-  useEffect(() => {
-    // Track regular route changes
-    trackPageView(location.pathname);
-  }, [location, trackPageView]);
-
-  useEffect(() => {
-    // Track state-based view changes as virtual pageviews
-    if (currentView) {
-      const viewName = currentView.charAt(0).toUpperCase() + currentView.slice(1);
-      trackPageView(`/view/${currentView}`, `${viewName} View`);
-      
-      // Also track as events for more detailed analytics
-      trackEvent('view_screen', {
-        screen_name: currentView,
-        ...additionalParams
-      });
-      
-      // Log for debugging
-      console.log(`Tracked virtual pageview: ${currentView}`, additionalParams);
-    }
-  }, [currentView, additionalParams, trackPageView, trackEvent]);
-
-  return null;
-};
-
-// Main App Component
+// Main App Component - No useLocation here
 function App() {
+  return (
+    <ErrorBoundary>
+      <AuthProvider>
+        <BrowserRouter>
+          <AppContent />
+        </BrowserRouter>
+      </AuthProvider>
+    </ErrorBoundary>
+  );
+}
+
+// AppContent component - All router-dependent code goes here
+const AppContent = () => {
   const [gameState, setGameState] = useState<'home' | 'welcome' | 'category' | 'invite' | 'lobby' | 'game' | 'results' | 'loading'>('home');
   const [currentMode, setCurrentMode] = useState<GameMode>('solo');
   const [categorySelectionInProgress, setCategorySelectionInProgress] = useState(false);
@@ -96,6 +73,32 @@ function App() {
     hasJoinedGame,
     requestRematch
   } = useOneVsOneStore();
+
+  // Check if we're on the welcome path
+  useEffect(() => {
+    // Check for direct navigation to welcome page
+    if (window.location.pathname === '/welcome') {
+      console.log('Direct navigation to welcome screen detected');
+      
+      // Ensure username is set
+      if (!localStorage.getItem('username')) {
+        localStorage.setItem('username', 'Guest');
+      }
+      
+      // Reset game states
+      resetSoloGame();
+      reset1v1Game();
+      
+      // Set game state to welcome
+      setGameState('welcome');
+      
+      // Track navigation
+      trackEvent('navigation', { 
+        action: 'to_welcome_screen',
+        source: 'direct_navigation'
+      });
+    }
+  }, [resetSoloGame, reset1v1Game, trackEvent]);
 
   const handleHomeStart = (username: string) => {
     // Track home screen start action
@@ -508,113 +511,150 @@ function App() {
     }
   };
 
-  // Render the game app with proper routing
   return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <BrowserRouter>
-          {/* Enhanced Route Tracker for SPA navigation */}
-          <EnhancedRouteTracker 
-            currentView={gameState}
-            additionalParams={analyticsParams}
-          />
-          
-          <Routes>
-            {/* Authentication Routes */}
-            <Route path="/auth/signup" element={<SignUp />} />
-            <Route path="/auth/signin" element={<SignIn />} />
-            <Route path="/auth/verification" element={<EmailVerification />} />
-            
-            {/* Protected Dashboard Routes */}
-            <Route path="/dashboard" element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/history" element={
-              <ProtectedRoute>
-                <GameHistory />
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/settings" element={
-              <ProtectedRoute>
-                <Settings />
-              </ProtectedRoute>
-            } />
+    <>
+      {/* Enhanced Route Tracker for SPA navigation */}
+      <EnhancedRouteTracker 
+        currentView={gameState}
+        additionalParams={analyticsParams}
+      />
+      
+      <Routes>
+        {/* Authentication Routes */}
+        <Route path="/auth/signup" element={<SignUp />} />
+        <Route path="/auth/signin" element={<SignIn />} />
+        <Route path="/auth/verification" element={<EmailVerification />} />
+        
+        {/* Protected Dashboard Routes */}
+        <Route path="/dashboard" element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/history" element={
+          <ProtectedRoute>
+            <GameHistory />
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/settings" element={
+          <ProtectedRoute>
+            <Settings />
+          </ProtectedRoute>
+        } />
 
-  <Route path="/auth/callback" element={<AuthCallback />} />
-            
-            {/* Static pages with their own routes */}
-            <Route path="/faq" element={<FAQPage />} />
-            <Route path="/about" element={<AboutPage />} />
-            
-            {/* Main game flow handled by state */}
-            <Route path="*" element={
-              <div className="min-h-screen bg-[#1a1a1a]">
-                {gameState === 'home' && (
-                  <Home onStart={handleHomeStart} />
-                )}
-                {gameState === 'welcome' && (
-                  <WelcomeScreen onStart={handleStart} />
-                )}
-                {gameState === 'invite' && (
-                  <InviteSystem 
-                    onJoinSuccess={handleInviteSuccess} 
-                    onBackToMode={handleReturnToModeSelect}
-                    selectedCategory={selectedCategory} // Pass the selected category
-                  />
-                )}
-                {gameState === 'category' && (
-                  <CategorySelect 
-                    onSelect={handleCategorySelect}
-                    mode={currentMode}
-                    onBack={handleReturnToModeSelect}
-                  />
-                )}
-                {gameState === 'loading' && (
-                  <div className="min-h-screen bg-background p-4 flex items-center justify-center">
-                    <div className="text-white text-center p-8">
-                      <h2 className="text-2xl font-bold mb-4">Loading Quiz...</h2>
-                      <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
-                        <div className="h-2 bg-green-500 rounded-full animate-pulse w-1/2"></div>
-                      </div>
-                    </div>
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        
+        {/* Static pages with their own routes */}
+        <Route path="/faq" element={<FAQPage />} />
+        <Route path="/about" element={<AboutPage />} />
+        
+        {/* Add explicit welcome screen route */}
+        <Route path="/welcome" element={
+          <div className="min-h-screen bg-[#1a1a1a]">
+            <WelcomeScreen onStart={handleStart} />
+          </div>
+        } />
+        
+        {/* Main game flow handled by state */}
+        <Route path="*" element={
+          <div className="min-h-screen bg-[#1a1a1a]">
+            {gameState === 'home' && (
+              <Home onStart={handleHomeStart} />
+            )}
+            {gameState === 'welcome' && (
+              <WelcomeScreen onStart={handleStart} />
+            )}
+            {gameState === 'invite' && (
+              <InviteSystem 
+                onJoinSuccess={handleInviteSuccess} 
+                onBackToMode={handleReturnToModeSelect}
+                selectedCategory={selectedCategory} // Pass the selected category
+              />
+            )}
+            {gameState === 'category' && (
+              <CategorySelect 
+                onSelect={handleCategorySelect}
+                mode={currentMode}
+                onBack={handleReturnToModeSelect}
+              />
+            )}
+            {gameState === 'loading' && (
+              <div className="min-h-screen bg-background p-4 flex items-center justify-center">
+                <div className="text-white text-center p-8">
+                  <h2 className="text-2xl font-bold mb-4">Loading Quiz...</h2>
+                  <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+                    <div className="h-2 bg-green-500 rounded-full animate-pulse w-1/2"></div>
                   </div>
-                )}
-                {gameState === 'lobby' && currentMode === '1v1' && (
-                  <MultiplayerLobby 
-                    onBackToCategory={handleBackToCategory}
-                    onBackToMode={handleReturnToModeSelect}
-                  />
-                )}
-                {/* Use a stable key to prevent unnecessary remounting of QuizGame */}
-                {gameState === 'game' && (
-                  <QuizGame 
-                    key={`game-${currentMode}-${soloPlayers[0]?.id || 'solo'}`}
-                    mode={currentMode} 
-                    onBackToCategory={handleBackToCategory}
-                    onBackToMode={handleReturnToModeSelect}
-                  />
-                )}
-                {gameState === 'results' && (
-                  currentMode === 'solo' ? (
-                    <SoloResultsScreen onPlayAgain={handlePlayAgain} onHome={handleReturnToModeSelect} />
-                  ) : (
-                    <OneVsOneResultsScreen 
-                      onPlayAgain={handle1v1Rematch} 
-                      onHome={handleReturnToModeSelect} 
-                    />
-                  )
-                )}
+                </div>
               </div>
-            } />
-          </Routes>
-        </BrowserRouter>
-      </AuthProvider>
-    </ErrorBoundary>
+            )}
+            {gameState === 'lobby' && currentMode === '1v1' && (
+              <MultiplayerLobby 
+                onBackToCategory={handleBackToCategory}
+                onBackToMode={handleReturnToModeSelect}
+              />
+            )}
+            {/* Use a stable key to prevent unnecessary remounting of QuizGame */}
+            {gameState === 'game' && (
+              <QuizGame 
+                key={`game-${currentMode}-${soloPlayers[0]?.id || 'solo'}`}
+                mode={currentMode} 
+                onBackToCategory={handleBackToCategory}
+                onBackToMode={handleReturnToModeSelect}
+              />
+            )}
+            {gameState === 'results' && (
+              currentMode === 'solo' ? (
+                <SoloResultsScreen onPlayAgain={handlePlayAgain} onHome={handleReturnToModeSelect} />
+              ) : (
+                <OneVsOneResultsScreen 
+                  onPlayAgain={handle1v1Rematch} 
+                  onHome={handleReturnToModeSelect} 
+                />
+              )
+            )}
+          </div>
+        } />
+      </Routes>
+    </>
   );
-}
+};
+
+// Enhanced Route Tracker Component for SPA navigation tracking
+const EnhancedRouteTracker = ({ 
+  currentView, 
+  additionalParams = {} 
+}: { 
+  currentView: string; 
+  additionalParams?: Record<string, any>; 
+}) => {
+  const { trackPageView, trackEvent } = useAnalyticsEvent();
+
+  useEffect(() => {
+    // Track the current URL path
+    trackPageView(window.location.pathname);
+  }, [trackPageView]);
+
+  useEffect(() => {
+    // Track state-based view changes as virtual pageviews
+    if (currentView) {
+      const viewName = currentView.charAt(0).toUpperCase() + currentView.slice(1);
+      trackPageView(`/view/${currentView}`, `${viewName} View`);
+      
+      // Also track as events for more detailed analytics
+      trackEvent('view_screen', {
+        screen_name: currentView,
+        ...additionalParams
+      });
+      
+      // Log for debugging
+      console.log(`Tracked virtual pageview: ${currentView}`, additionalParams);
+    }
+  }, [currentView, additionalParams, trackPageView, trackEvent]);
+
+  return null;
+};
 
 export default App;
