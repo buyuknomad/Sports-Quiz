@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
-import { Trophy, Swords, UserPlus, Info, HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Trophy, Swords, UserPlus, Info, HelpCircle, ChevronDown, ChevronUp, Home } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLocation } from 'react-router-dom';
+import { NavigationButton } from './navigation';
+import { NAVIGATION_LABELS } from '../constants/navigation';
 
 // Define expanded GameMode type with the new join option
 type GameMode = 'solo' | 'create' | 'join';
@@ -50,6 +53,17 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
   const [selectedMode, setSelectedMode] = useState<GameMode | null>(null);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [activeInfoPanel, setActiveInfoPanel] = useState<GameMode | null>(null);
+  const location = useLocation();
+  
+  // Check if we came from dashboard or another page (not home)
+  const [showBackToHome, setShowBackToHome] = useState(false);
+  
+  useEffect(() => {
+    // If we came from another page (not directly loaded at home),
+    // we should show the back button
+    const cameFromElsewhere = location.pathname === '/welcome';
+    setShowBackToHome(cameFromElsewhere);
+  }, [location.pathname]);
   
   const handleModeSelect = (mode: GameMode) => {
     setSelectedMode(mode);
@@ -62,6 +76,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
       }
       onStart(username, mode);
     }, 300);
+  };
+  
+  // Handle navigation back to home
+  const handleBackToHome = () => {
+    window.location.href = '/';
   };
   
   // Handle Learn More clicks
@@ -106,6 +125,17 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
   
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-b from-[#0c1220] to-[#1a1a2e]">
+      {/* Back to Home button - only show if we came from another page */}
+      {showBackToHome && (
+        <div className="fixed bottom-6 left-6 z-50">
+          <NavigationButton
+            icon={Home}
+            label={NAVIGATION_LABELS.HOME}
+            onClick={handleBackToHome}
+          />
+        </div>
+      )}
+
       {/* Header content remains the same */}
       <motion.div
         initial={{ y: -20, opacity: 0 }}
