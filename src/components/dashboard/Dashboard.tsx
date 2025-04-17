@@ -7,6 +7,8 @@ import {
   LogOut, Settings, ArrowRight, Target
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+// Import ConfirmationDialog
+import { ConfirmationDialog } from '../navigation';
 
 // Game session type
 interface GameSession {
@@ -39,6 +41,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onPlayNewQuiz }) => {
     favoriteCategory: '',
     totalCorrectAnswers: 0
   });
+  
+  // Add confirmation dialog state
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   
   const navigate = useNavigate();
 
@@ -110,9 +115,21 @@ const Dashboard: React.FC<DashboardProps> = ({ onPlayNewQuiz }) => {
     fetchGameHistory();
   }, [user]);
 
-  const handleSignOut = async () => {
-    await signOut();
-    navigate('/');
+  // Handle sign out button click - show confirmation dialog
+  const handleSignOutClick = () => {
+    setShowSignOutConfirm(true);
+  };
+
+  // Handle confirmed sign out
+  const handleConfirmSignOut = async () => {
+    try {
+      await signOut();
+      navigate('/');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    } finally {
+      setShowSignOutConfirm(false);
+    }
   };
 
   // Function to get category emoji
@@ -180,7 +197,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onPlayNewQuiz }) => {
             </Link>
             
             <motion.button
-              onClick={handleSignOut}
+              onClick={handleSignOutClick}
               className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -354,6 +371,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onPlayNewQuiz }) => {
           </motion.div>
         </div>
       </div>
+
+      {/* Sign Out Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={showSignOutConfirm}
+        onConfirm={handleConfirmSignOut}
+        onCancel={() => setShowSignOutConfirm(false)}
+        title="Sign Out?"
+        message="Are you sure you want to sign out? Any unsaved progress will be lost."
+        confirmText="Sign Out"
+        cancelText="Cancel"
+      />
     </div>
   );
 };
