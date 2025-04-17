@@ -1,4 +1,4 @@
-// App.tsx with route-based navigation
+// App.tsx with route-based navigation and state synchronization
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -115,6 +115,66 @@ const AppContent = () => {
     requestRematch
   } = useOneVsOneStore();
 
+  // State synchronization function to ensure state matches URL
+  const ensureValidGameState = useCallback(() => {
+    const currentPath = location.pathname;
+    
+    // Synchronize state based on URL
+    if (currentPath === '/' && gameState !== 'home') {
+      setGameState('home');
+    } else if (currentPath === '/welcome' && gameState !== 'welcome') {
+      setGameState('welcome');
+    } else if (currentPath === '/category' && gameState !== 'category') {
+      setGameState('category');
+    } else if (currentPath === '/invite' && gameState !== 'invite') {
+      setGameState('invite');
+    } else if (currentPath === '/lobby' && gameState !== 'lobby') {
+      setGameState('lobby');
+    } else if (currentPath === '/game' && gameState !== 'game' && gameState !== 'loading') {
+      setGameState('game');
+    } else if (currentPath === '/results' && gameState !== 'results') {
+      setGameState('results');
+    }
+    
+    // Special case for game over scenarios
+    if (currentMode === 'solo' && isSoloGameEnded && gameState !== 'results') {
+      console.log('Solo game has ended but state is not results, fixing state');
+      setGameState('results');
+      
+      // Only navigate if we're not already on the results page
+      if (currentPath !== '/results') {
+        navigate('/results');
+      }
+    } else if (currentMode === '1v1' && is1v1GameEnded && gameState !== 'results') {
+      console.log('1v1 game has ended but state is not results, fixing state');
+      setGameState('results');
+      
+      // Only navigate if we're not already on the results page
+      if (currentPath !== '/results') {
+        navigate('/results');
+      }
+    }
+  }, [
+    location.pathname, 
+    gameState, 
+    currentMode, 
+    isSoloGameEnded, 
+    is1v1GameEnded, 
+    navigate
+  ]);
+
+  // Call the synchronization function when relevant state changes
+  useEffect(() => {
+    ensureValidGameState();
+  }, [
+    location.pathname, 
+    gameState, 
+    currentMode, 
+    isSoloGameEnded, 
+    is1v1GameEnded, 
+    ensureValidGameState
+  ]);
+
   // Handle direct navigation to welcome page
   useEffect(() => {
     if (location.pathname === '/welcome' && !welcomeInitialized.current) {
@@ -149,28 +209,6 @@ const AppContent = () => {
       localStorage.removeItem('navigationSource');
     }
   }, [location.pathname, trackEvent, gameState]);
-
-  // Sync URL with gameState
-  useEffect(() => {
-    // Handle URL changes to sync with gameState
-    const path = location.pathname;
-    
-    if (path === '/' && gameState !== 'home') {
-      setGameState('home');
-    } else if (path === '/welcome' && gameState !== 'welcome') {
-      setGameState('welcome');
-    } else if (path === '/category' && gameState !== 'category') {
-      setGameState('category');
-    } else if (path === '/invite' && gameState !== 'invite') {
-      setGameState('invite');
-    } else if (path === '/lobby' && gameState !== 'lobby') {
-      setGameState('lobby');
-    } else if (path === '/game' && gameState !== 'game') {
-      setGameState('game');
-    } else if (path === '/results' && gameState !== 'results') {
-      setGameState('results');
-    }
-  }, [location.pathname, gameState]);
 
   const handleHomeStart = (username: string) => {
     // Track home screen start action
@@ -719,7 +757,24 @@ const AppContent = () => {
           )
         } />
         <Route path="/results" element={
-          currentMode === 'solo' ? (
+          gameState !== 'results' && !isSoloGameEnded && !is1v1GameEnded ? (
+            // Invalid state detected - user shouldn't be on results page
+            <div className="min-h-screen flex items-center justify-center bg-[#1a1a1a]">
+              <div className="bg-gray-800 rounded-xl p-8 max-w-md text-center">
+                <h2 className="text-2xl font-bold text-white mb-4">No Results Available</h2>
+                <p className="text-gray-400 mb-6">You need to complete a game to see results.</p>
+                <button
+                  onClick={() => {
+                    setGameState('welcome');
+                    navigate('/welcome');
+                  }}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg"
+                >
+                  Go to Game Selection
+                </button>
+              </div>
+            </div>
+          ) : currentMode === 'solo' ? (
             <SoloResultsScreen onPlayAgain={handlePlayAgain} onHome={handleReturnToModeSelect} />
           ) : (
             <OneVsOneResultsScreen 
