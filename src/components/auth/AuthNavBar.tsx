@@ -1,18 +1,112 @@
+// src/components/auth/AuthNavBar.tsx
 import React from 'react';
 import { motion } from 'framer-motion';
 import { User, LogIn, LogOut } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
-const AuthNavBar: React.FC = () => {
+interface AuthNavBarProps {
+  variant?: 'default' | 'compact' | 'minimal';
+}
+
+const AuthNavBar: React.FC<AuthNavBarProps> = ({ 
+  variant = 'default' 
+}) => {
   const { user, profile, signOut } = useAuth();
   
   const handleSignOut = async () => {
     await signOut();
   };
   
+  // Minimal variant (icon only)
+  if (variant === 'minimal') {
+    return (
+      <div className="flex items-center gap-2">
+        {user ? (
+          <div className="flex items-center gap-2">
+            <Link to="/dashboard">
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg transition-colors"
+                title="Dashboard"
+              >
+                <User size={18} />
+              </motion.div>
+            </Link>
+            
+            <motion.button
+              onClick={handleSignOut}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="p-2 bg-gray-700 hover:bg-gray-600 text-white rounded-full shadow-lg transition-colors"
+              title="Sign Out"
+            >
+              <LogOut size={18} />
+            </motion.button>
+          </div>
+        ) : (
+          <Link to="/auth/signin">
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg transition-colors"
+              title="Sign In"
+            >
+              <LogIn size={18} />
+            </motion.div>
+          </Link>
+        )}
+      </div>
+    );
+  }
+
+  // Compact variant (username abbreviated)
+  if (variant === 'compact') {
+    return (
+      <div className="flex items-center gap-2">
+        {user ? (
+          <div className="flex items-center gap-2">
+            <Link to="/dashboard">
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="flex items-center gap-2 py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg transition-colors"
+              >
+                <User size={18} />
+                <span className="max-w-[60px] truncate">{profile?.username || 'User'}</span>
+              </motion.div>
+            </Link>
+            
+            <motion.button
+              onClick={handleSignOut}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="p-2 bg-gray-700 hover:bg-gray-600 text-white rounded-full shadow-lg transition-colors"
+              title="Sign Out"
+            >
+              <LogOut size={18} />
+            </motion.button>
+          </div>
+        ) : (
+          <Link to="/auth/signin">
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="flex items-center gap-2 py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg transition-colors"
+            >
+              <LogIn size={18} />
+              <span>Sign In</span>
+            </motion.div>
+          </Link>
+        )}
+      </div>
+    );
+  }
+
+  // Default variant (full username)
   return (
-    <div className="fixed top-4 right-4 z-50">
+    <div className="flex items-center gap-2">
       {user ? (
         <div className="flex items-center gap-2">
           <Link to="/dashboard">
