@@ -5,6 +5,7 @@ import { Home, Info, Trophy, Users, Zap, Globe } from 'lucide-react';
 import { NavigationButton } from './navigation';
 import { NAVIGATION_LABELS } from '../constants/navigation';
 import { useAnalyticsEvent } from '../hooks/useAnalyticsEvent';
+import EnhancedNavBar from './layout/EnhancedNavBar';
 
 // Animation variants
 const containerVariants = {
@@ -100,6 +101,9 @@ const AboutPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0c1220] to-[#1a1a2e] py-16 px-4">
+      {/* Added EnhancedNavBar */}
+      <EnhancedNavBar variant="default" position="top-right" />
+
       {/* Navigation Button */}
       <div className="fixed bottom-6 left-6 z-10">
         <NavigationButton
