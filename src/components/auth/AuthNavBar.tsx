@@ -1,9 +1,10 @@
 // src/components/auth/AuthNavBar.tsx
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { User, LogIn, LogOut } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { ConfirmationDialog } from '../navigation';
 
 interface AuthNavBarProps {
   variant?: 'default' | 'compact' | 'minimal';
@@ -13,15 +14,34 @@ const AuthNavBar: React.FC<AuthNavBarProps> = ({
   variant = 'default' 
 }) => {
   const { user, profile, signOut } = useAuth();
+  // Add state for sign out confirmation dialog
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   
-  const handleSignOut = async () => {
+  const handleSignOutClick = () => {
+    // Show confirmation dialog instead of signing out immediately
+    setShowSignOutConfirm(true);
+  };
+  
+  const handleConfirmSignOut = async () => {
     await signOut();
+    setShowSignOutConfirm(false);
   };
   
   // Minimal variant (icon only)
   if (variant === 'minimal') {
     return (
       <div className="flex items-center gap-2">
+        {/* Sign Out Confirmation Dialog */}
+        <ConfirmationDialog
+          isOpen={showSignOutConfirm}
+          onConfirm={handleConfirmSignOut}
+          onCancel={() => setShowSignOutConfirm(false)}
+          title="Sign Out?"
+          message="Are you sure you want to sign out? Any unsaved progress will be lost."
+          confirmText="Sign Out"
+          cancelText="Cancel"
+        />
+        
         {user ? (
           <div className="flex items-center gap-2">
             <Link to="/dashboard">
@@ -36,7 +56,7 @@ const AuthNavBar: React.FC<AuthNavBarProps> = ({
             </Link>
             
             <motion.button
-              onClick={handleSignOut}
+              onClick={handleSignOutClick}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               className="p-2 bg-gray-700 hover:bg-gray-600 text-white rounded-full shadow-lg transition-colors"
@@ -65,6 +85,17 @@ const AuthNavBar: React.FC<AuthNavBarProps> = ({
   if (variant === 'compact') {
     return (
       <div className="flex items-center gap-2">
+        {/* Sign Out Confirmation Dialog */}
+        <ConfirmationDialog
+          isOpen={showSignOutConfirm}
+          onConfirm={handleConfirmSignOut}
+          onCancel={() => setShowSignOutConfirm(false)}
+          title="Sign Out?"
+          message="Are you sure you want to sign out? Any unsaved progress will be lost."
+          confirmText="Sign Out"
+          cancelText="Cancel"
+        />
+        
         {user ? (
           <div className="flex items-center gap-2">
             <Link to="/dashboard">
@@ -79,7 +110,7 @@ const AuthNavBar: React.FC<AuthNavBarProps> = ({
             </Link>
             
             <motion.button
-              onClick={handleSignOut}
+              onClick={handleSignOutClick}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               className="p-2 bg-gray-700 hover:bg-gray-600 text-white rounded-full shadow-lg transition-colors"
@@ -107,6 +138,17 @@ const AuthNavBar: React.FC<AuthNavBarProps> = ({
   // Default variant (full username)
   return (
     <div className="flex items-center gap-2">
+      {/* Sign Out Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={showSignOutConfirm}
+        onConfirm={handleConfirmSignOut}
+        onCancel={() => setShowSignOutConfirm(false)}
+        title="Sign Out?"
+        message="Are you sure you want to sign out? Any unsaved progress will be lost."
+        confirmText="Sign Out"
+        cancelText="Cancel"
+      />
+      
       {user ? (
         <div className="flex items-center gap-2">
           <Link to="/dashboard">
@@ -121,7 +163,7 @@ const AuthNavBar: React.FC<AuthNavBarProps> = ({
           </Link>
           
           <motion.button
-            onClick={handleSignOut}
+            onClick={handleSignOutClick}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             className="p-2 bg-gray-700 hover:bg-gray-600 text-white rounded-full shadow-lg transition-colors"
