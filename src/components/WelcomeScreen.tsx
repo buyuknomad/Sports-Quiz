@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
 import { NavigationButton } from './navigation';
 import { NAVIGATION_LABELS } from '../constants/navigation';
-import AuthNavBar from './auth/AuthNavBar'; // Import AuthNavBar
+import EnhancedNavBar from './layout/EnhancedNavBar';
 
 // Define expanded GameMode type with the new join option
 type GameMode = 'solo' | 'create' | 'join';
@@ -131,8 +131,8 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
   
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-b from-[#0c1220] to-[#1a1a2e]">
-      {/* Add AuthNavBar to the top right */}
-      <AuthNavBar />
+      {/* Add EnhancedNavBar instead of AuthNavBar */}
+      <EnhancedNavBar variant="default" position="top-right" />
       
       {/* Back to Home button - only show if we came from dashboard */}
       {showBackToHome && (
