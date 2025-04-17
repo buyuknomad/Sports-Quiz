@@ -8,7 +8,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useAnalyticsEvent } from '../hooks/useAnalyticsEvent';
 import Footer from './layout/Footer';
-import AuthNavBar from './auth/AuthNavBar';
+import EnhancedNavBar from './layout/EnhancedNavBar';
 
 // Keep existing interface
 interface HomeProps {
@@ -138,8 +138,8 @@ const Home: React.FC<HomeProps> = ({ onStart }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0c1220] to-[#1a1a2e] text-white">
-      {/* AuthNavBar - keep your existing authentication UI */}
-      <AuthNavBar />
+      {/* Replace AuthNavBar with EnhancedNavBar */}
+      <EnhancedNavBar variant="default" position="top-right" />
 
       {/* Main Hero Section */}
       <main className="container mx-auto px-4 py-8">
