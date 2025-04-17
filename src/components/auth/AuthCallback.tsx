@@ -9,7 +9,8 @@ const AuthCallback: React.FC = () => {
     // The hash contains access_token, refresh_token etc.
     const handleAuthChange = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_IN') {
-        navigate('/dashboard');
+        // Changed from '/dashboard' to '/welcome'
+        navigate('/welcome');
       }
     });
 
@@ -19,7 +20,8 @@ const AuthCallback: React.FC = () => {
       // The hash will be processed automatically by Supabase Auth
       // but we can manually handle the redirect after processing
       const timeout = setTimeout(() => {
-        navigate('/dashboard');
+        // Changed from '/dashboard' to '/welcome'
+        navigate('/welcome');
       }, 1000);
       
       return () => {
