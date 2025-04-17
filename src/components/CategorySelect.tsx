@@ -1,4 +1,4 @@
-// Enhanced category selection component with back button and animations
+// Enhanced category selection component with nav bar, back button and animations
 import React, { useEffect, useState } from 'react';
 import { Trophy, Target, Circle, Medal, Dumbbell, ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -6,7 +6,7 @@ import { useOneVsOneStore } from '../store/oneVsOneStore';
 import type { Category, GameMode } from '../types';
 import { NavigationButton } from './navigation';
 import { NAVIGATION_LABELS } from '../constants/navigation';
-
+import EnhancedNavBar from './layout/EnhancedNavBar';
 
 interface CategorySelectProps {
   onSelect: (category: Category) => void;
@@ -71,6 +71,9 @@ export const CategorySelect: React.FC<CategorySelectProps> = ({
   if (mode !== 'solo' && hasJoinedGame && !isHost) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4">
+        {/* Added EnhancedNavBar */}
+        <EnhancedNavBar variant="minimal" position="float" />
+        
         <motion.div 
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -133,24 +136,20 @@ export const CategorySelect: React.FC<CategorySelectProps> = ({
   };
 
   return (
-  <div className="flex flex-col items-center justify-center min-h-screen p-4 pb-20">
-    {/* Replace this with NavigationButton */}
-  
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 pb-20">
+      {/* Add EnhancedNavBar */}
+      <EnhancedNavBar variant="minimal" position="top-right" />
 
-{onBack && (
-  <div className="fixed bottom-6 left-6 z-10">
-    <NavigationButton
-      icon={ArrowLeft}
-      label={NAVIGATION_LABELS.MODES}
-      onClick={onBack}
-    />
-  </div>
-)}
-
-
-
-
-
+      {/* Back button to mode selection */}
+      {onBack && (
+        <div className="fixed bottom-6 left-6 z-10">
+          <NavigationButton
+            icon={ArrowLeft}
+            label={NAVIGATION_LABELS.MODES}
+            onClick={onBack}
+          />
+        </div>
+      )}
       
       <div className="w-full max-w-4xl">
         <motion.div
@@ -229,3 +228,5 @@ export const CategorySelect: React.FC<CategorySelectProps> = ({
     </div>
   );
 };
+
+export default CategorySelect;
