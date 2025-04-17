@@ -165,13 +165,11 @@ const ShareModal = ({
     
     setTimeout(() => {
       // Show confetti effect on successful share
-      if (typeof confetti === 'function') {
-        confetti({
-          particleCount: 100,
-          spread: 70,
-          origin: { y: 0.6 }
-        });
-      }
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 }
+      });
       
       onShowToast('Results shared successfully!');
       setLoading(false);
@@ -450,13 +448,7 @@ const ActionButtons = React.memo(({ onPlayAgain, onHome, onShare }: {
 }) => (
   <div className="grid grid-cols-3 gap-4">
     <button
-      onClick={() => {
-        if (typeof onPlayAgain === 'function') {
-          onPlayAgain();
-        } else {
-          console.error('onPlayAgain is not a function');
-        }
-      }}
+      onClick={onPlayAgain}
       className="flex items-center justify-center gap-2 p-4 rounded-xl bg-green-600 
                hover:bg-green-700 text-white font-semibold transition-all transform 
                hover:scale-[1.02] active:scale-[0.98] group"
@@ -465,13 +457,7 @@ const ActionButtons = React.memo(({ onPlayAgain, onHome, onShare }: {
       Play Again
     </button>
     <button
-      onClick={() => {
-        if (typeof onHome === 'function') {
-          onHome();
-        } else {
-          console.error('onHome is not a function');
-        }
-      }}
+      onClick={onHome}
       className="flex items-center justify-center gap-2 p-4 rounded-xl bg-gray-700 
                hover:bg-gray-600 text-white font-semibold transition-all transform 
                hover:scale-[1.02] active:scale-[0.98] group"
@@ -496,44 +482,21 @@ const ActionButtons = React.memo(({ onPlayAgain, onHome, onShare }: {
 
 ActionButtons.displayName = 'ActionButtons';
 
-const SoloResultsScreen: React.FC<SoloResultsScreenProps> = ({ onPlayAgain, onHome }) => {
+const SoloResultsScreen = React.memo<SoloResultsScreenProps>(({ onPlayAgain, onHome }) => {
   const { players, category, questions, questionResponseTimes } = useGameStore();
   const player = players[0];
-  const categoryEmoji = categoryEmojis[category] || '🎯'; // Provide default emoji
+  const categoryEmoji = categoryEmojis[category];
   const [showShareModal, setShowShareModal] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Check for required data
-  if (!player) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-b from-gray-900 to-gray-800">
-        <div className="w-full max-w-md bg-gray-800/50 backdrop-blur-lg rounded-2xl p-8 shadow-xl border border-gray-700/50 text-center">
-          <h2 className="text-2xl font-bold text-white mb-4">No Game Results</h2>
-          <p className="text-gray-300 mb-6">No game data was found. You need to complete a game to see results.</p>
-          <button
-            onClick={() => {
-              if (typeof onHome === 'function') {
-                onHome();
-              }
-            }}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
-          >
-            Return to Home
-          </button>
-        </div>
-      </div>
-    );
-  }
   
   // No need for challenge ID as we're just linking to homepage
-  const totalQuestions = questions.length || 10; // Default to 10 if not available
+  const totalQuestions = questions.length;
   const score = player?.score || 0;
   const maxPossibleScore = totalQuestions * 15; // Each question is worth 15 points max
-  const accuracy = totalQuestions > 0 ? (score / maxPossibleScore) * 100 : 0;
+  const accuracy = (score / maxPossibleScore) * 100;
   
   // More engaging share text
-  const getShareText = useCallback(() => {
+  const getShareText = () => {
     const performanceLabel = 
       accuracy >= 90 ? 'mastered' : 
       accuracy >= 70 ? 'aced' : 
@@ -541,15 +504,9 @@ const SoloResultsScreen: React.FC<SoloResultsScreenProps> = ({ onPlayAgain, onHo
       'tackled';
     
     return `I just ${performanceLabel} the ${category} quiz on SportIQ with ${score}/${maxPossibleScore} points (${accuracy.toFixed(1)}% accuracy)! Think you can beat my score? 🎯 #SportIQ https://sportiq.games`;
-  }, [accuracy, category, score, maxPossibleScore]);
+  };
   
-  const [customShareText, setCustomShareText] = useState('');
-  
-  // Initialize share text on component mount
-  useEffect(() => {
-    setCustomShareText(getShareText());
-  }, [getShareText]);
-  
+  const [customShareText, setCustomShareText] = useState(getShareText());
   const shareText = customShareText;
   const shareUrl = `https://sportiq.games`;
   
@@ -557,7 +514,7 @@ const SoloResultsScreen: React.FC<SoloResultsScreenProps> = ({ onPlayAgain, onHo
   const correctAnswers = player?.correctAnswers || 0;
   const incorrectAnswers = totalQuestions - correctAnswers;
   
-  const validResponseTimes = (questionResponseTimes || []).filter(time => time > 0 && time <= 15);
+  const validResponseTimes = questionResponseTimes.filter(time => time > 0 && time <= 15);
   const fastestResponse = validResponseTimes.length > 0 ? Math.min(...validResponseTimes) : 0;
   const slowestResponse = validResponseTimes.length > 0 ? Math.max(...validResponseTimes) : 0;
   const avgTimePerQuestion = validResponseTimes.length > 0
@@ -573,44 +530,37 @@ const SoloResultsScreen: React.FC<SoloResultsScreenProps> = ({ onPlayAgain, onHo
     setTimeout(() => setToast(null), 3000);
   };
 
-  // Add confetti effect on mount with error handling
   useEffect(() => {
-    try {
-      if (typeof confetti === 'function') {
-        const duration = 3000;
-        const animationEnd = Date.now() + duration;
-        const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
-  
-        const randomInRange = (min: number, max: number) => {
-          return Math.random() * (max - min) + min;
-        };
-  
-        const interval: NodeJS.Timer = setInterval(() => {
-          const timeLeft = animationEnd - Date.now();
-  
-          if (timeLeft <= 0) {
-            return clearInterval(interval);
-          }
-  
-          const particleCount = 50 * (timeLeft / duration);
-  
-          confetti({
-            ...defaults,
-            particleCount,
-            origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }
-          });
-          confetti({
-            ...defaults,
-            particleCount,
-            origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }
-          });
-        }, 250);
-  
-        return () => clearInterval(interval);
+    const duration = 3000;
+    const animationEnd = Date.now() + duration;
+    const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+
+    const randomInRange = (min: number, max: number) => {
+      return Math.random() * (max - min) + min;
+    };
+
+    const interval: NodeJS.Timer = setInterval(() => {
+      const timeLeft = animationEnd - Date.now();
+
+      if (timeLeft <= 0) {
+        return clearInterval(interval);
       }
-    } catch (error) {
-      console.error('Error with confetti effect:', error);
-    }
+
+      const particleCount = 50 * (timeLeft / duration);
+
+      confetti({
+        ...defaults,
+        particleCount,
+        origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }
+      });
+      confetti({
+        ...defaults,
+        particleCount,
+        origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }
+      });
+    }, 250);
+
+    return () => clearInterval(interval);
   }, []);
 
   const handleShare = useCallback(() => {
@@ -621,28 +571,6 @@ const SoloResultsScreen: React.FC<SoloResultsScreenProps> = ({ onPlayAgain, onHo
     // Reset the share text when opening the modal
     setCustomShareText(getShareText());
   }, [getShareText]);
-
-  // Error display if needed
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-b from-gray-900 to-gray-800">
-        <div className="w-full max-w-md bg-gray-800/50 backdrop-blur-lg rounded-2xl p-8 shadow-xl border border-red-700/50">
-          <h2 className="text-2xl font-bold text-white mb-4">Something went wrong</h2>
-          <p className="text-red-400 mb-6">{error}</p>
-          <button
-            onClick={() => {
-              if (typeof onHome === 'function') {
-                onHome();
-              }
-            }}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg w-full"
-          >
-            Return to Home
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-b from-gray-900 to-gray-800">
@@ -743,6 +671,8 @@ const SoloResultsScreen: React.FC<SoloResultsScreenProps> = ({ onPlayAgain, onHo
       `}</style>
     </div>
   );
-};
+});
+
+SoloResultsScreen.displayName = 'SoloResultsScreen';
 
 export default SoloResultsScreen;
