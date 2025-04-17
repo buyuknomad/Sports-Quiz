@@ -1,4 +1,4 @@
-// Enhanced 1v1 Results screen component with improved sharing
+// Enhanced 1v1 Results screen component with improved sharing and EnhancedNavBar
 import React, { useEffect, useCallback, useState } from 'react';
 import { 
   Trophy, Home, RotateCw, Share2, Timer, Target, Award, 
@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { useOneVsOneStore } from '../store/oneVsOneStore';
 import type { Category } from '../types';
+import EnhancedNavBar from './layout/EnhancedNavBar';
 
 interface OneVsOneResultsScreenProps {
   onPlayAgain: () => void;
@@ -556,6 +557,18 @@ const ActionButtons = React.memo(({
 
 ActionButtons.displayName = 'ActionButtons';
 
+// Define Player type since it's not imported
+interface Player {
+  id: string;
+  username: string;
+  score: number;
+  correctAnswers?: number;
+  isReady?: boolean;
+  hasFinished?: boolean;
+  rematchReady?: boolean;
+  responseTimes?: number[];
+}
+
 export const OneVsOneResultsScreen: React.FC<OneVsOneResultsScreenProps> = ({ onPlayAgain, onHome }) => {
   const { 
     players, 
@@ -607,7 +620,6 @@ export const OneVsOneResultsScreen: React.FC<OneVsOneResultsScreenProps> = ({ on
   const [customShareText, setCustomShareText] = useState(getShareText());
   const shareText = customShareText;
   const shareUrl = `https://sportiq.games`;
-  const [shareSuccess, setShareSuccess] = useState(false);
 
   // Rematch request handler
   const handleRematch = () => {
@@ -738,6 +750,9 @@ export const OneVsOneResultsScreen: React.FC<OneVsOneResultsScreenProps> = ({ on
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-b from-gray-900 to-gray-800">
+      {/* Add EnhancedNavBar */}
+      <EnhancedNavBar variant="minimal" position="top-right" />
+      
       <div className="w-full max-w-3xl bg-gray-800/50 backdrop-blur-lg rounded-2xl p-8 shadow-xl border border-gray-700/50">
         <div className="text-center mb-8">
           <div className="relative inline-block">
@@ -838,19 +853,7 @@ export const OneVsOneResultsScreen: React.FC<OneVsOneResultsScreenProps> = ({ on
         .animate-scaleIn {
           animation: scaleIn 0.3s ease-out;
         }
-        
-        /* Almarena-like font styling */
-        .sport-share-text {
-          font-family: "Almarena Neue", "Montserrat", "Segoe UI", sans-serif;
-          font-weight: 700;
-          letter-spacing: -0.02em;
-          font-size: 1.1rem;
-          line-height: 1.4;
-          text-transform: none;
-        }
       `}</style>
     </div>
   );
 };
-
-export default OneVsOneResultsScreen;
