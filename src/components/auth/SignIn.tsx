@@ -16,7 +16,7 @@ const SignIn: React.FC = () => {
   const location = useLocation();
   
   // Check if there's a redirect path in the location state
-  const from = (location.state as any)?.from || '/dashboard';
+  const from = (location.state as any)?.from || '/welcome';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
