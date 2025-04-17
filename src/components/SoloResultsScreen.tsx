@@ -1,4 +1,4 @@
-// Enhanced Solo Results Screen with improved sharing functionality
+// Enhanced Solo Results Screen with improved sharing functionality and EnhancedNavBar
 import React, { useEffect, useCallback, useState } from 'react';
 import { 
   Trophy, Home, RotateCw, Share2, Timer, Target, Award, 
@@ -9,6 +9,7 @@ import confetti from 'canvas-confetti';
 import { useGameStore } from '../store/gameStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Category } from '../types';
+import EnhancedNavBar from './layout/EnhancedNavBar';
 
 interface SoloResultsScreenProps {
   onPlayAgain: () => void;
@@ -508,7 +509,6 @@ const SoloResultsScreen = React.memo<SoloResultsScreenProps>(({ onPlayAgain, onH
   const [customShareText, setCustomShareText] = useState(getShareText());
   const shareText = customShareText;
   const shareUrl = `https://sportiq.games`;
-  const [shareSuccess, setShareSuccess] = useState(false);
   
   // Use the actual count of correct answers from the player object
   const correctAnswers = player?.correctAnswers || 0;
@@ -574,6 +574,9 @@ const SoloResultsScreen = React.memo<SoloResultsScreenProps>(({ onPlayAgain, onH
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-b from-gray-900 to-gray-800">
+      {/* Add EnhancedNavBar with minimal variant */}
+      <EnhancedNavBar variant="minimal" position="top-right" />
+      
       <div className="w-full max-w-xl bg-gray-800/50 backdrop-blur-lg rounded-2xl p-8 shadow-xl border border-gray-700/50">
         <div className="text-center mb-8">
           <div className="relative inline-block">
@@ -664,16 +667,6 @@ const SoloResultsScreen = React.memo<SoloResultsScreenProps>(({ onPlayAgain, onH
         
         .animate-scaleIn {
           animation: scaleIn 0.3s ease-out;
-        }
-        
-        /* Almarena-like font styling */
-        .sport-share-text {
-          font-family: "Almarena Neue", "Montserrat", "Segoe UI", sans-serif;
-          font-weight: 700;
-          letter-spacing: -0.02em;
-          font-size: 1.1rem;
-          line-height: 1.4;
-          text-transform: none;
         }
       `}</style>
     </div>
