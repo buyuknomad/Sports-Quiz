@@ -7,6 +7,8 @@ import { NAVIGATION_LABELS } from '../constants/navigation';
 import EnhancedNavBar from './layout/EnhancedNavBar';
 // Import Footer component
 import Footer from './layout/Footer';
+// Import useAuth hook
+import { useAuth } from '../contexts/AuthContext';
 
 // Define expanded GameMode type with the new join option
 type GameMode = 'solo' | 'create' | 'join';
@@ -57,6 +59,8 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [activeInfoPanel, setActiveInfoPanel] = useState<GameMode | null>(null);
   const location = useLocation();
+  // Get user authentication status
+  const { user } = useAuth();
   
   // Check if we came from dashboard or another page (not home)
   const [showBackToHome, setShowBackToHome] = useState(false);
@@ -435,23 +439,25 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
           )}
         </AnimatePresence>
 
-        {/* Username display with animation */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          className="mt-6 sm:mt-8 text-center"
-        >
-          <p className="text-gray-400 text-sm sm:text-base">
-            Playing as: {' '}
-            <motion.span 
-              className="text-green-400 font-semibold"
-              whileHover={{ scale: 1.1 }}
-            >
-              {username}
-            </motion.span>
-          </p>
-        </motion.div>
+        {/* Username display with animation - Only show when user is NOT signed in */}
+        {!user && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            className="mt-6 sm:mt-8 text-center"
+          >
+            <p className="text-gray-400 text-sm sm:text-base">
+              Playing as: {' '}
+              <motion.span 
+                className="text-green-400 font-semibold"
+                whileHover={{ scale: 1.1 }}
+              >
+                {username}
+              </motion.span>
+            </p>
+          </motion.div>
+        )}
       </div>
       
       {/* Add Footer component */}
