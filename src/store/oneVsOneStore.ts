@@ -106,7 +106,7 @@ interface OneVsOneStore extends OneVsOneState {
   getCurrentPlayer: () => Player | undefined;
   addChatMessage: (playerId: string, message: string) => void;
   getPlayerResponseTimes: (playerId: string) => number[];
-  resetGame: () => void;
+  resetGame: (disconnect?: boolean) => void;  // Updated with optional disconnect parameter
   setCategory: (category: Category) => void;
   endGame: () => Promise<void>;
   requestRematch: (playerId: string) => void;
@@ -298,7 +298,7 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
         isGameStarted: false,
         isGameEnded: true,
         scores: new Map(data.players.map((p: Player) => [p.id, p.score || 0])),
-        playerResponseTimes: new Map(), // Re-initialize for safety
+        playerResponseTimes: new Map(), // Ensure this is properly initialized
         players: data.players,
         completionTime
       };
@@ -419,6 +419,17 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
       isConnecting: false,
       isGameCreationInProgress: false
     }));
+  });
+
+  socket.on('hostLeft', (data) => {
+    console.log('Host left the game:', data);
+    // When the host leaves, transition back to home/welcome screen
+    window.dispatchEvent(new CustomEvent('sportiq:hostLeft'));
+  });
+
+  socket.on('playerLeft', (data) => {
+    console.log('Player left the game:', data);
+    // Handle player leaving if needed
   });
 
   return {
@@ -783,11 +794,21 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
       }));
     },
 
-    resetGame: () => {
-      if (socket.connected) {
+    // Updated resetGame function with optional disconnect parameter
+    resetGame: (disconnect = false) => {
+      // Only disconnect if explicitly requested
+      if (disconnect && socket.connected) {
+        console.log('Explicitly disconnecting socket during resetGame');
         socket.disconnect();
+      } else if (socket.connected) {
+        console.log('Keeping socket connected during resetGame');
       }
-      set(initialState);
+      
+      set({
+        ...initialState,
+        socket, // Keep the socket reference
+        currentPlayerId: socket.id || '' // Keep the current player ID if available
+      });
     },
     
     endGame: async () => {
@@ -799,7 +820,9 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
       return new Promise<void>((resolve) => {
         // Set up a one-time listener for the gameOver event
         const handleGameOver = (data: any) => {
+          console.log('gameOver event received in endGame handler');
           socket.off('gameOver', handleGameOver);
+          clearTimeout(timeout);
           resolve();
         };
         
@@ -807,11 +830,13 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
         
         // Add a timeout in case the server doesn't respond
         const timeout = setTimeout(() => {
+          console.log('gameOver timeout reached, resolving anyway');
           socket.off('gameOver', handleGameOver);
           resolve();
         }, 3000);
         
         // Emit gameOver event to the server
+        console.log('Emitting gameOver to server for gameId:', gameId);
         socket.emit('gameOver', { gameId });
         
         // Set local state as well in case the server response is delayed
@@ -850,10 +875,36 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
       set(state => ({ ...state, category }));
     },
     
-    // Add requestRematch function
+    // Improved requestRematch function
     requestRematch: (playerId: string) => {
       const { gameId, socket } = get();
-      if (!gameId || !socket.connected) return;
+      
+      if (!gameId) {
+        console.error('Cannot request rematch: No game ID');
+        return;
+      }
+      
+      if (!socket) {
+        console.error('Cannot request rematch: No socket object');
+        return;
+      }
+      
+      if (!socket.connected) {
+        console.error('Cannot request rematch: Socket is not connected, attempting to reconnect...');
+        socket.connect();
+        
+        // Retry after a short delay
+        setTimeout(() => {
+          if (socket.connected) {
+            console.log('Socket reconnected, retrying rematch request');
+            get().requestRematch(playerId);
+          } else {
+            console.error('Socket reconnection failed, cannot request rematch');
+          }
+        }, 1000);
+        
+        return;
+      }
       
       console.log('Requesting rematch:', { gameId, playerId });
       socket.emit('requestRematch', { gameId, playerId });
