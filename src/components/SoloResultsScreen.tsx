@@ -475,7 +475,8 @@ const ActionButtons = React.memo(({ onPlayAgain, onHome, onShare }: {
 
 ActionButtons.displayName = 'ActionButtons';
 
-const SoloResultsScreen = React.memo<SoloResultsScreenProps>(({ onPlayAgain, onHome }) => {
+// Don't memo the component since that can cause stale state issues with the button
+const SoloResultsScreen: React.FC<SoloResultsScreenProps> = ({ onPlayAgain, onHome }) => {
   const { players, category, questions, questionResponseTimes } = useGameStore();
   const player = players[0];
   const categoryEmoji = categoryEmojis[category];
@@ -523,19 +524,31 @@ const SoloResultsScreen = React.memo<SoloResultsScreenProps>(({ onPlayAgain, onH
     setTimeout(() => setToast(null), 3000);
   };
 
-  // Modified handlePlayAgain wrapper that prevents rapidly clicking the button
+  // Improved handlePlayAgain wrapper with better state synchronization
   const [isPlayingAgain, setIsPlayingAgain] = useState(false);
   
   const handlePlayAgainClick = useCallback(() => {
     if (isPlayingAgain) return;
     
-    setIsPlayingAgain(true);
-    onPlayAgain();
+    // Log the action for debugging
+    console.log('Play Again button clicked, triggering game reset...');
     
-    // Reset the button after a timeout to prevent double-clicks
+    // First set loading state to prevent multiple clicks
+    setIsPlayingAgain(true);
+    
+    // Add a small delay before calling onPlayAgain to ensure UI updates first
+    // This helps prevent the state confusion that causes the delayed functionality
     setTimeout(() => {
-      setIsPlayingAgain(false);
-    }, 1000);
+      // Call the original handler
+      onPlayAgain();
+      
+      // Wait longer before allowing the button to be clicked again
+      // This ensures the game state has time to fully reset and initialize
+      setTimeout(() => {
+        console.log('Resetting play again button state...');
+        setIsPlayingAgain(false);
+      }, 2000);
+    }, 100);
   }, [onPlayAgain, isPlayingAgain]);
 
   const handleShare = useCallback(() => {
@@ -552,7 +565,7 @@ const SoloResultsScreen = React.memo<SoloResultsScreenProps>(({ onPlayAgain, onH
       {/* Add EnhancedNavBar with minimal variant */}
       <EnhancedNavBar variant="minimal" position="top-right" />
       
-      <div className="w-full max-w-xl bg-gray-800/50 backdrop-blur-lg rounded-2xl p-8 shadow-xl border border-gray-700/50">
+      <div data-testid="solo-results-container" className="w-full max-w-xl bg-gray-800/50 backdrop-blur-lg rounded-2xl p-8 shadow-xl border border-gray-700/50">
         <div className="text-center mb-8">
           <div className="relative inline-block">
             <Trophy className="w-24 h-24 text-yellow-400 animate-bounce filter drop-shadow-lg" />
@@ -648,6 +661,5 @@ const SoloResultsScreen = React.memo<SoloResultsScreenProps>(({ onPlayAgain, onH
   );
 });
 
-SoloResultsScreen.displayName = 'SoloResultsScreen';
-
+// Export directly without memo wrapper
 export default SoloResultsScreen;
