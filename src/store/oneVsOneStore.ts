@@ -108,7 +108,7 @@ interface OneVsOneStore extends OneVsOneState {
   getPlayerResponseTimes: (playerId: string) => number[];
   resetGame: () => void;
   setCategory: (category: Category) => void;
-  endGame: () => void;
+  endGame: () => Promise<void>;
   requestRematch: (playerId: string) => void;
 }
 
@@ -292,26 +292,20 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
     const completionTime = (endTime - startTime) / 1000;
     
     set(state => {
-      // Ensure we have the final scores and response times
-      const finalScores = new Map(data.players.map((p: Player) => [p.id, p.score || 0]));
-      const finalResponseTimes = new Map(state.playerResponseTimes);
-      
-      data.players.forEach((player: Player) => {
-        if (player.responseTimes) {
-          finalResponseTimes.set(player.id, player.responseTimes);
-        }
-      });
-
+      // Update all state at once to ensure consistency
       return {
         ...state,
         isGameStarted: false,
         isGameEnded: true,
-        scores: finalScores,
-        playerResponseTimes: finalResponseTimes,
+        scores: new Map(data.players.map((p: Player) => [p.id, p.score || 0])),
+        playerResponseTimes: new Map(), // Re-initialize for safety
         players: data.players,
         completionTime
       };
     });
+    
+    // Dispatch an event to signal game end for navigation
+    window.dispatchEvent(new CustomEvent('sportiq:gameEnded', { detail: data }));
   });
 
   socket.on('categoryUpdated', (data) => {
@@ -796,24 +790,40 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
       set(initialState);
     },
     
-    endGame: () => {
+    endGame: async () => {
       const { gameId, socket } = get();
-      if (!gameId || !socket.connected) return;
+      if (!gameId || !socket.connected) return Promise.resolve();
       
       console.log('Manually ending game:', gameId);
       
-      // Emit gameOver event to the server
-      socket.emit('gameOver', { gameId });
-      
-      // Set local state as well in case the server response is delayed
-      const endTime = Date.now();
-      const startTime = get().startTime;
-      const completionTime = (endTime - startTime) / 1000;
-      
-      set({
-        isGameStarted: false,
-        isGameEnded: true,
-        completionTime
+      return new Promise<void>((resolve) => {
+        // Set up a one-time listener for the gameOver event
+        const handleGameOver = (data: any) => {
+          socket.off('gameOver', handleGameOver);
+          resolve();
+        };
+        
+        socket.once('gameOver', handleGameOver);
+        
+        // Add a timeout in case the server doesn't respond
+        const timeout = setTimeout(() => {
+          socket.off('gameOver', handleGameOver);
+          resolve();
+        }, 3000);
+        
+        // Emit gameOver event to the server
+        socket.emit('gameOver', { gameId });
+        
+        // Set local state as well in case the server response is delayed
+        const endTime = Date.now();
+        const startTime = get().startTime;
+        const completionTime = (endTime - startTime) / 1000;
+        
+        set({
+          isGameStarted: false,
+          isGameEnded: true,
+          completionTime
+        });
       });
     },
 
