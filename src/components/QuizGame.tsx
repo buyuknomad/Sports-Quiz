@@ -171,10 +171,9 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
     // - Game ending already triggered
     // - Game already ended
     // - No onGameEnd callback
-    if (!isLastQuestion || !isAnswerChecked || endingTriggered || isGameEnded || !onGameEnd) {
-      return;
-    }
-
+   // In QuizGame.tsx
+useEffect(() => {
+  if (isLastQuestion && isAnswerChecked && !endingTriggered && !isGameEnded && onGameEnd) {
     console.log('Last question answered, preparing to end game');
     
     const timer = setTimeout(() => {
@@ -184,7 +183,8 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
     }, 2500); // Wait for answer feedback to be displayed
     
     return () => clearTimeout(timer);
-  }, [isLastQuestion, isAnswerChecked, endingTriggered, isGameEnded, onGameEnd]);
+  }
+}, [isLastQuestion, isAnswerChecked, endingTriggered, isGameEnded, onGameEnd]);
 
   useEffect(() => {
     // Only reset state if we actually have a question to display
