@@ -659,7 +659,7 @@ const SoloResultsScreen: React.FC<SoloResultsScreenProps> = ({ onPlayAgain, onHo
       `}</style>
     </div>
   );
-});
+};
 
 // Export directly without memo wrapper
 export default SoloResultsScreen;
