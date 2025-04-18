@@ -1,5 +1,5 @@
 // Enhanced Solo Results Screen with improved sharing functionality and EnhancedNavBar
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { 
   Trophy, Home, RotateCw, Share2, Timer, Target, Award, 
   CheckCircle, XCircle, Zap, Copy, X, Facebook, 
