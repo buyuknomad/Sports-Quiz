@@ -532,38 +532,41 @@ const AppContent = () => {
 
   // Track game completion and transition to results
   useEffect(() => {
-    if (currentMode === 'solo' && isSoloGameEnded) {
-      console.log('Solo game ended, navigating to results page');
-      navigate('/results');
-      
-      // Track solo game completion
-      const soloPlayer = soloPlayers[0];
-      trackEvent('game_completed', {
-        mode: 'solo',
-        category: selectedCategory,
-        score: soloPlayer?.score || 0,
-        correct_answers: soloPlayer?.correctAnswers || 0,
-        total_questions: 10
-      });
-    } else if (currentMode === '1v1' && is1v1GameEnded) {
-      console.log('1v1 game ended, navigating to results page');
-      navigate('/results');
-      
-      // Track multiplayer game completion
-      const currentPlayer = getCurrentPlayer();
-      const opponentPlayer = multiPlayers.find(p => p.id !== currentPlayer?.id);
-      
-      trackEvent('game_completed', {
-        mode: '1v1',
-        category: selectedCategory,
-        player_score: currentPlayer?.score || 0,
-        opponent_score: opponentPlayer?.score || 0,
-        correct_answers: currentPlayer?.correctAnswers || 0,
-        is_winner: currentPlayer?.score > (opponentPlayer?.score || 0),
-        total_questions: 10
-      });
+    // Only navigate if we're not already on the results page
+    if (location.pathname !== '/results') {
+      if (currentMode === 'solo' && isSoloGameEnded) {
+        console.log('Solo game ended, navigating to results page');
+        navigate('/results');
+        
+        // Track solo game completion
+        const soloPlayer = soloPlayers[0];
+        trackEvent('game_completed', {
+          mode: 'solo',
+          category: selectedCategory,
+          score: soloPlayer?.score || 0,
+          correct_answers: soloPlayer?.correctAnswers || 0,
+          total_questions: 10
+        });
+      } else if (currentMode === '1v1' && is1v1GameEnded) {
+        console.log('1v1 game ended, navigating to results page');
+        navigate('/results');
+        
+        // Track multiplayer game completion
+        const currentPlayer = getCurrentPlayer();
+        const opponentPlayer = multiPlayers.find(p => p.id !== currentPlayer?.id);
+        
+        trackEvent('game_completed', {
+          mode: '1v1',
+          category: selectedCategory,
+          player_score: currentPlayer?.score || 0,
+          opponent_score: opponentPlayer?.score || 0,
+          correct_answers: currentPlayer?.correctAnswers || 0,
+          is_winner: currentPlayer?.score > (opponentPlayer?.score || 0),
+          total_questions: 10
+        });
+      }
     }
-  }, [isSoloGameEnded, is1v1GameEnded, currentMode, trackEvent, selectedCategory, soloPlayers, multiPlayers, getCurrentPlayer, navigate]);
+  }, [isSoloGameEnded, is1v1GameEnded, currentMode, trackEvent, selectedCategory, soloPlayers, multiPlayers, getCurrentPlayer, navigate, location.pathname]);
 
   // Socket event listener for game over
   useEffect(() => {
