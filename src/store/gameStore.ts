@@ -92,6 +92,8 @@ export const useGameStore = create<GameStore>((set, get) => {
         isGameStarted: false,
         userAnswers: []
       });
+      
+      return Promise.resolve(); // Always return a Promise
     },
 
     addPlayer: (username: string) => {
@@ -199,28 +201,11 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
     },
 
-   // In gameStore.ts - endGame function
-endGame: async () => {
-  const state = get();
-  if (state.mode === 'solo') {
-    const endTime = Date.now();
-    const totalTime = (endTime - state.startTime) / 1000;
-    
-    set({
-      isGameStarted: false,
-      isGameEnded: true,
-      completionTime: totalTime
-    });
-    
-    // Return a promise that resolves when state is updated
-    return new Promise<void>(resolve => {
-      // Small timeout to ensure state update completes
-      setTimeout(resolve, 50);
-    });
-  }
-  
-  return Promise.resolve(); // Always return a Promise
-}
+    endGame: async () => {
+      const state = get();
+      if (state.mode === 'solo') {
+        const endTime = Date.now();
+        const totalTime = (endTime - state.startTime) / 1000;
         
         // Update the state
         set({
