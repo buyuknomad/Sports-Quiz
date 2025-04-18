@@ -16,6 +16,7 @@ interface QuizGameProps {
   mode: GameMode;
   onBackToCategory?: () => void;
   onBackToMode?: () => void;
+  onGameEnd?: () => void; // New prop for handling game end
 }
 
 // Bonus tier definitions
@@ -50,7 +51,7 @@ const optionVariants = {
   exit: { x: 20, opacity: 0 }
 };
 
-const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMode }) => {
+const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMode, onGameEnd }) => {
   // Log component mounting
   useEffect(() => {
     console.log('QuizGame component mounted for mode:', mode);
@@ -103,6 +104,7 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
   const isHost = currentPlayer?.isHost;
   const question = questions[currentQuestion];
   const isMultiplayer = mode !== 'solo';
+  const isLastQuestion = currentQuestion === questions.length - 1;
 
   // Monitor question changes
   useEffect(() => {
@@ -161,32 +163,28 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
     setConfirmDialog({ isOpen: false, type: null });
   };
 
+  // Effect to handle game ending when the last question is answered
   useEffect(() => {
-    if (!isMultiplayer || !question || isGameEnded || endingTriggered) return;
-    
-    const isLastQuestion = currentQuestion === questions.length - 1;
-    
-    if (isLastQuestion && isAnswerChecked) {
-      console.log('Last question answered by current player, checking end game conditions...');
-      
-      const timer = setTimeout(() => {
-        console.log('Forcing game end after last question');
-        setEndingTriggered(true);
-        endGame();
-      }, 3000);
-      
-      return () => clearTimeout(timer);
+    // Don't do anything if:
+    // - Not the last question
+    // - Answer not checked yet
+    // - Game ending already triggered
+    // - Game already ended
+    // - No onGameEnd callback
+    if (!isLastQuestion || !isAnswerChecked || endingTriggered || isGameEnded || !onGameEnd) {
+      return;
     }
-  }, [
-    currentQuestion, 
-    questions.length, 
-    isAnswerChecked, 
-    isMultiplayer, 
-    question,
-    endGame,
-    isGameEnded,
-    endingTriggered
-  ]);
+
+    console.log('Last question answered, preparing to end game');
+    
+    const timer = setTimeout(() => {
+      console.log('Triggering game end after last question');
+      setEndingTriggered(true);
+      onGameEnd();
+    }, 2500); // Wait for answer feedback to be displayed
+    
+    return () => clearTimeout(timer);
+  }, [isLastQuestion, isAnswerChecked, endingTriggered, isGameEnded, onGameEnd]);
 
   useEffect(() => {
     // Only reset state if we actually have a question to display
