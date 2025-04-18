@@ -205,51 +205,62 @@ export const useGameStore = create<GameStore>((set, get) => {
         const endTime = Date.now();
         const totalTime = (endTime - state.startTime) / 1000;
         
+        // Update the state
         set({
           isGameStarted: false,
           isGameEnded: true,
           completionTime: totalTime
         });
         
-        // Try to get the current authenticated user
-        const user = await getCurrentUser();
-        
-        // If user is logged in, save the results
-        if (user) {
-          const currentPlayer = state.players[0];
-          
-          if (currentPlayer) {
-            const correctAnswers = currentPlayer.correctAnswers || 0;
+        // Return a promise that resolves when state is updated
+        return new Promise<void>(resolve => {
+          // Small timeout to ensure state update completes
+          setTimeout(async () => {
+            // Try to get the current authenticated user
+            const user = await getCurrentUser();
             
-            // Prepare question details for saving
-            const questionDetails = state.userAnswers.map(answer => ({
-              questionId: answer.questionId,
-              userAnswer: answer.answer,
-              isCorrect: answer.isCorrect,
-              responseTime: answer.responseTime
-            }));
-            
-            // Save the results to the database
-            try {
-              await saveGameResults({
-                userId: user.id,
-                mode: state.mode,
-                category: state.category,
-                score: currentPlayer.score,
-                correctAnswers,
-                totalQuestions: state.questions.length,
-                completionTime: totalTime,
-                questionDetails
-              });
-              console.log('Game results saved successfully');
-            } catch (error) {
-              console.error('Failed to save game results:', error);
+            // If user is logged in, save the results
+            if (user) {
+              const currentPlayer = state.players[0];
+              
+              if (currentPlayer) {
+                const correctAnswers = currentPlayer.correctAnswers || 0;
+                
+                // Prepare question details for saving
+                const questionDetails = state.userAnswers.map(answer => ({
+                  questionId: answer.questionId,
+                  userAnswer: answer.answer,
+                  isCorrect: answer.isCorrect,
+                  responseTime: answer.responseTime
+                }));
+                
+                // Save the results to the database
+                try {
+                  await saveGameResults({
+                    userId: user.id,
+                    mode: state.mode,
+                    category: state.category,
+                    score: currentPlayer.score,
+                    correctAnswers,
+                    totalQuestions: state.questions.length,
+                    completionTime: totalTime,
+                    questionDetails
+                  });
+                  console.log('Game results saved successfully');
+                } catch (error) {
+                  console.error('Failed to save game results:', error);
+                }
+              }
+            } else {
+              console.log('User not logged in, skipping result saving');
             }
-          }
-        } else {
-          console.log('User not logged in, skipping result saving');
-        }
+            
+            resolve();
+          }, 50);
+        });
       }
+      
+      return Promise.resolve();
     },
 
     nextQuestion: () => {
@@ -305,7 +316,7 @@ export const useGameStore = create<GameStore>((set, get) => {
               ? { 
                   ...p, 
                   score: totalScore,
-                  correctAnswers: isCorrect ? p.correctAnswers + 1 : p.correctAnswers 
+                  correctAnswers: isCorrect ? (p.correctAnswers || 0) + 1 : (p.correctAnswers || 0) 
                 } 
               : p
           ),
@@ -314,19 +325,23 @@ export const useGameStore = create<GameStore>((set, get) => {
 
         if (transitionTimeout) clearTimeout(transitionTimeout);
 
+        // Check if this is the last question
+        const isLastQuestion = state.currentQuestion >= state.questions.length - 1;
+        
         transitionTimeout = setTimeout(() => {
-          const currentState = get();
-          if (currentState.currentQuestion < currentState.questions.length - 1) {
+          if (isLastQuestion) {
+            // If it's the last question, end the game
+            get().endGame();
+          } else {
+            // Otherwise proceed to the next question
             set({
-              currentQuestion: currentState.currentQuestion + 1,
+              currentQuestion: state.currentQuestion + 1,
               timeRemaining: 15,
               isTransitioning: false,
               selectedAnswer: null,
               isAnswerChecked: false,
               isCorrect: false
             });
-          } else {
-            get().endGame();
           }
         }, 2000);
       }
