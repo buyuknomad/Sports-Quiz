@@ -524,32 +524,37 @@ const SoloResultsScreen: React.FC<SoloResultsScreenProps> = ({ onPlayAgain, onHo
     setTimeout(() => setToast(null), 3000);
   };
 
-  // Improved handlePlayAgain wrapper with better state synchronization
+  // Complete overhaul of the Play Again handling with forced blocking
   const [isPlayingAgain, setIsPlayingAgain] = useState(false);
+  const playAgainInitiatedRef = useRef(false);
   
   const handlePlayAgainClick = useCallback(() => {
-    if (isPlayingAgain) return;
+    // Use refs to completely block multiple executions
+    if (isPlayingAgain || playAgainInitiatedRef.current) {
+      console.log('Play Again already in progress, blocking additional clicks');
+      return;
+    }
     
-    // Log the action for debugging
-    console.log('Play Again button clicked, triggering game reset...');
-    
-    // First set loading state to prevent multiple clicks
+    // Set both state and ref to block clicks
     setIsPlayingAgain(true);
+    playAgainInitiatedRef.current = true;
     
-    // Add a small delay before calling onPlayAgain to ensure UI updates first
-    // This helps prevent the state confusion that causes the delayed functionality
-    setTimeout(() => {
-      // Call the original handler
+    console.log('Play Again button clicked, initiating game reset (with blocking)...');
+    
+    try {
+      // Call onPlayAgain immediately - no delay
       onPlayAgain();
       
-      // Wait longer before allowing the button to be clicked again
-      // This ensures the game state has time to fully reset and initialize
-      setTimeout(() => {
-        console.log('Resetting play again button state...');
-        setIsPlayingAgain(false);
-      }, 2000);
-    }, 100);
-  }, [onPlayAgain, isPlayingAgain]);
+      // Leave the button disabled indefinitely
+      // It will be unmounted when navigation completes
+      // Never reset isPlayingAgain or playAgainInitiatedRef
+    } catch (err) {
+      console.error('Error in Play Again:', err);
+      // Only reset on error to allow retry
+      setIsPlayingAgain(false);
+      playAgainInitiatedRef.current = false;
+    }
+  }, [onPlayAgain]);
 
   const handleShare = useCallback(() => {
     // Skip native sharing and always use our custom modal
