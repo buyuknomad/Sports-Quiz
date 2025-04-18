@@ -1,4 +1,4 @@
-// App.tsx with enhanced Google Analytics tracking and authentication routes
+// App.tsx with route-based navigation for the game flow
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -98,7 +98,8 @@ const AppContent = () => {
     isGameStarted: isSoloGameStarted, 
     isGameEnded: isSoloGameEnded,
     resetGame: resetSoloGame,
-    players: soloPlayers
+    players: soloPlayers,
+    endGame: endSoloGame
   } = useGameStore();
 
   const {
@@ -112,8 +113,30 @@ const AppContent = () => {
     getCurrentPlayer,
     socket,
     hasJoinedGame,
-    requestRematch
+    requestRematch,
+    endGame: end1v1Game
   } = useOneVsOneStore();
+
+  // Effect to sync URL with game state - respond to URL changes
+  useEffect(() => {
+    const path = location.pathname;
+    
+    if (path === '/') {
+      setGameState('home');
+    } else if (path === '/welcome') {
+      setGameState('welcome');
+    } else if (path === '/category') {
+      setGameState('category');
+    } else if (path === '/invite') {
+      setGameState('invite');
+    } else if (path === '/lobby') {
+      setGameState('lobby');
+    } else if (path === '/game') {
+      setGameState('game');
+    } else if (path === '/results') {
+      setGameState('results');
+    }
+  }, [location.pathname]);
 
   // Handle direct navigation to welcome page - USING A REF TO PREVENT INFINITE LOOP
   useEffect(() => {
@@ -163,7 +186,6 @@ const AppContent = () => {
     
     // Always navigate to welcome URL for consistency
     navigate('/welcome');
-    setGameState('welcome');
   };
 
   const handleStart = async (username: string, selectedMode: GameMode) => {
@@ -179,40 +201,25 @@ const AppContent = () => {
         resetSoloGame();
         await initializeSoloGame('solo');
         addPlayer(username);
-        setGameState('category');
         
-        // Standardize URL behavior - either stay on welcome or go to home
-        if (location.pathname === '/welcome') {
-          // Already on welcome route, just update state
-        } else {
-          navigate('/');
-        }
+        // Use navigate instead of setGameState for proper URL-based routing
+        navigate('/category');
       } else if (selectedMode === 'create') {
         // Host path: Create a new 1v1 game 
         reset1v1Game();
         await initialize1v1Game();
-        setGameState('category'); // Go to category selection first
         
-        // Standardize URL behavior
-        if (location.pathname === '/welcome') {
-          // Already on welcome route, just update state
-        } else {
-          navigate('/');
-        }
+        // Navigate to category selection
+        navigate('/category');
       } else if (selectedMode === 'join') {
         // Guest path: Skip category, go straight to invite system in join mode
         reset1v1Game();
         await initialize1v1Game();
         // Set a flag to show the join UI directly
         localStorage.setItem('showJoinUI', 'true');
-        setGameState('invite');
         
-        // Standardize URL behavior
-        if (location.pathname === '/welcome') {
-          // Already on welcome route, just update state
-        } else {
-          navigate('/');
-        }
+        // Navigate to invite page
+        navigate('/invite');
         
         // Track join game attempt
         trackEvent('join_game_attempt', { mode: '1v1' });
@@ -241,7 +248,7 @@ const AppContent = () => {
       resetSoloGame();
       initializeSoloGame(currentMode);
       addPlayer(username);
-      setGameState('category');
+      navigate('/category');
     } else {
       // For 1v1 mode, we don't need to do anything here
       // The rematch process is handled by the OneVsOneResultsScreen component
@@ -256,7 +263,7 @@ const AppContent = () => {
     
     // User has clicked "Continue to Lobby" on InviteSystem
     // The game is already created in the InviteSystem component
-    setGameState('lobby');
+    navigate('/lobby');
   };
 
   const handleCategorySelect = async (category: Category) => {
@@ -283,10 +290,11 @@ const AppContent = () => {
           // Show loading state immediately to prevent any other actions
           setGameState('loading');
           
-          // Then set category, which will load questions
+          // Set category, which will load questions
           await setSoloCategory(category);
           
-          // The gameState will be updated to 'game' by the useEffect when isGameStarted becomes true
+          // Navigate to game page instead of setting state
+          navigate('/game');
         } catch (error) {
           console.error('Error setting solo category:', error);
           
@@ -298,7 +306,7 @@ const AppContent = () => {
           });
           
           // If there's an error, go back to category selection
-          setGameState('category');
+          navigate('/category');
         }
       } else {
         // 1v1 mode - store selected category and go to invite screen
@@ -308,11 +316,11 @@ const AppContent = () => {
           // Already joined a game (went back from lobby)
           console.log('Already joined game, updating category');
           set1v1Category(category);
-          setGameState('lobby');
+          navigate('/lobby');
         } else {
           // New game flow - go to invite system
           console.log('Selected category for new game:', category);
-          setGameState('invite');
+          navigate('/invite');
         }
       }
     } finally {
@@ -344,12 +352,9 @@ const AppContent = () => {
     // Redirect based on context
     if (goToCategory) {
       console.log('Redirecting to category selection from invite screen');
-      setGameState('category');
+      navigate('/category');
     } else {
       // Otherwise go to welcome screen
-      setGameState('welcome');
-      
-      // Always navigate to welcome URL for consistency
       navigate('/welcome');
     }
   };
@@ -363,49 +368,39 @@ const AppContent = () => {
     });
     
     if (currentMode === 'solo') {
-      // Instead of initializing a new game, just change the state
-      // Don't reset or initialize the game here
-      setGameState('category');
+      // Navigate to category selection
+      navigate('/category');
     } else {
       // For multiplayer, going back to category is only possible for the host
       const currentPlayer = getCurrentPlayer();
       if (currentPlayer && currentPlayer.isHost) {
-        setGameState('category');
+        navigate('/category');
       } else {
         // Non-host players would go to lobby instead
-        setGameState('lobby');
+        navigate('/lobby');
       }
     }
   };
 
-  // Listen for the custom game started event
+  // Listen for custom gameEnded event from socket
   useEffect(() => {
-    const handleGameStarted = () => {
-      console.log('Custom game started event received, forcing transition to game');
-      if (gameState === 'lobby') {
-        setGameState('game');
-        
-        // Track game start from lobby
-        trackEvent('game_started', {
-          mode: '1v1',
-          category: selectedCategory,
-          players_count: multiPlayers.length
-        });
-      }
+    const handleGameEnded = (event: Event) => {
+      console.log('Game ended event received, navigating to results');
+      navigate('/results');
     };
-
-    window.addEventListener('sportiq:gameStarted', handleGameStarted);
+    
+    window.addEventListener('sportiq:gameEnded', handleGameEnded);
     
     return () => {
-      window.removeEventListener('sportiq:gameStarted', handleGameStarted);
+      window.removeEventListener('sportiq:gameEnded', handleGameEnded);
     };
-  }, [gameState, trackEvent, multiPlayers.length, selectedCategory]);
+  }, [navigate]);
 
   // Listen for custom returnToLobby event for rematch
   useEffect(() => {
     const handleReturnToLobby = () => {
       console.log('Custom returnToLobby event received, navigating to lobby');
-      setGameState('lobby');
+      navigate('/lobby');
       
       // Track rematch accepted
       trackEvent('rematch_accepted', {
@@ -419,16 +414,37 @@ const AppContent = () => {
     return () => {
       window.removeEventListener('sportiq:returnToLobby', handleReturnToLobby);
     };
-  }, [trackEvent, selectedCategory]);
+  }, [trackEvent, selectedCategory, navigate]);
+
+  // Listen for the custom game started event
+  useEffect(() => {
+    const handleGameStarted = () => {
+      console.log('Custom game started event received, forcing transition to game');
+      navigate('/game');
+      
+      // Track game start from lobby
+      trackEvent('game_started', {
+        mode: '1v1',
+        category: selectedCategory,
+        players_count: multiPlayers.length
+      });
+    };
+
+    window.addEventListener('sportiq:gameStarted', handleGameStarted);
+    
+    return () => {
+      window.removeEventListener('sportiq:gameStarted', handleGameStarted);
+    };
+  }, [trackEvent, multiPlayers.length, selectedCategory, navigate]);
   
-  // More targeted effect for loading -> game transition
+  // Effect for loading -> game transition
   useEffect(() => {
     if (gameState === 'loading' && (
         (currentMode === 'solo' && isSoloGameStarted) ||
         (currentMode === '1v1' && is1v1GameStarted)
       )) {
       console.log('Game started while in loading screen, transitioning to game screen');
-      setGameState('game');
+      navigate('/game');
       
       // Track game start from loading screen
       trackEvent('game_started', {
@@ -437,13 +453,13 @@ const AppContent = () => {
         from_loading: true
       });
     }
-  }, [isSoloGameStarted, is1v1GameStarted, currentMode, gameState, trackEvent, selectedCategory]);
+  }, [isSoloGameStarted, is1v1GameStarted, currentMode, gameState, trackEvent, selectedCategory, navigate]);
   
   // Specific effect for lobby -> game transition
   useEffect(() => {
-    if (gameState === 'lobby' && currentMode === '1v1' && is1v1GameStarted && !is1v1GameEnded) {
+    if (location.pathname === '/lobby' && currentMode === '1v1' && is1v1GameStarted && !is1v1GameEnded) {
       console.log('1v1 game started while in lobby state, transitioning to game screen');
-      setGameState('game');
+      navigate('/game');
       
       // Track multiplayer game start
       trackEvent('game_started', {
@@ -453,13 +469,13 @@ const AppContent = () => {
         players_count: multiPlayers.length
       });
     }
-  }, [is1v1GameStarted, is1v1GameEnded, currentMode, gameState, trackEvent, selectedCategory, multiPlayers.length]);
+  }, [is1v1GameStarted, is1v1GameEnded, currentMode, location.pathname, trackEvent, selectedCategory, multiPlayers.length, navigate]);
 
   // Track game completion and transition to results
   useEffect(() => {
     if (currentMode === 'solo' && isSoloGameEnded) {
-      console.log('Solo game ended, transitioning to results screen');
-      setGameState('results');
+      console.log('Solo game ended, navigating to results page');
+      navigate('/results');
       
       // Track solo game completion
       const soloPlayer = soloPlayers[0];
@@ -468,12 +484,11 @@ const AppContent = () => {
         category: selectedCategory,
         score: soloPlayer?.score || 0,
         correct_answers: soloPlayer?.correctAnswers || 0,
-        total_questions: 10 // Assuming 10 questions per game
+        total_questions: 10
       });
-      
     } else if (currentMode === '1v1' && is1v1GameEnded) {
-      console.log('1v1 game ended, transitioning to results screen');
-      setGameState('results');
+      console.log('1v1 game ended, navigating to results page');
+      navigate('/results');
       
       // Track multiplayer game completion
       const currentPlayer = getCurrentPlayer();
@@ -486,78 +501,50 @@ const AppContent = () => {
         opponent_score: opponentPlayer?.score || 0,
         correct_answers: currentPlayer?.correctAnswers || 0,
         is_winner: currentPlayer?.score > (opponentPlayer?.score || 0),
-        total_questions: 10 // Assuming 10 questions per game
+        total_questions: 10
       });
     }
-  }, [isSoloGameEnded, is1v1GameEnded, currentMode, trackEvent, selectedCategory, soloPlayers, multiPlayers, getCurrentPlayer]);
+  }, [isSoloGameEnded, is1v1GameEnded, currentMode, trackEvent, selectedCategory, soloPlayers, multiPlayers, getCurrentPlayer, navigate]);
 
   // Socket event listener for game over
   useEffect(() => {
-    if (socket && currentMode === '1v1') {
-      const handleGameOver = (data: any) => {
-        console.log('Game over event received in App.tsx:', data);
-        setGameState('results');
-        
-        setTimeout(() => {
-          if (gameState !== 'results' && is1v1GameEnded) {
-            console.log('Forcing transition to results screen');
-            setGameState('results');
-          }
-        }, 1000);
-      };
+    if (!socket) return;
+    
+    const handleGameOver = (data: any) => {
+      console.log('Game over event received in App.tsx:', data);
+      navigate('/results');
+    };
 
-      socket.on('gameOver', handleGameOver);
-      
-      return () => {
-        socket.off('gameOver', handleGameOver);
-      };
-    }
-  }, [socket, currentMode, is1v1GameEnded, gameState]);
+    socket.on('gameOver', handleGameOver);
+    
+    return () => {
+      socket.off('gameOver', handleGameOver);
+    };
+  }, [socket, navigate]);
 
   // Force transition to results if needed
   useEffect(() => {
-    if (currentMode === '1v1' && is1v1GameEnded && gameState !== 'results') {
-      console.log('Game ended but UI not in results state, forcing transition');
+    if (currentMode === '1v1' && is1v1GameEnded && location.pathname !== '/results') {
+      console.log('Game ended but not on results page, forcing transition');
       
       const timer = setTimeout(() => {
-        setGameState('results');
+        navigate('/results');
       }, 500);
       
       return () => clearTimeout(timer);
     }
-  }, [currentMode, is1v1GameEnded, gameState]);
+  }, [currentMode, is1v1GameEnded, location.pathname, navigate]);
 
-  // Debug logging for state changes
-  useEffect(() => {
-    console.log('Current game state:', {
-      mode: currentMode,
-      state: gameState,
-      isSoloGameStarted,
-      isSoloGameEnded,
-      is1v1GameStarted,
-      is1v1GameEnded,
-      soloPlayersCount: soloPlayers.length,
-      multiPlayersCount: multiPlayers.length,
-      hasJoinedGame,
-      categorySelectionInProgress,
-      selectedCategory,
-      isHost: getCurrentPlayer()?.isHost,
-      goToCategory: localStorage.getItem('goToCategory')
-    });
-  }, [
-    gameState, 
-    currentMode, 
-    isSoloGameStarted, 
-    isSoloGameEnded, 
-    is1v1GameStarted, 
-    is1v1GameEnded, 
-    soloPlayers.length, 
-    multiPlayers.length,
-    hasJoinedGame,
-    categorySelectionInProgress,
-    selectedCategory,
-    getCurrentPlayer
-  ]);
+  // Handle manual game end for both solo and 1v1 mode
+  const handleGameEnd = async () => {
+    if (currentMode === 'solo') {
+      await endSoloGame();
+      navigate('/results');
+    } else if (currentMode === '1v1') {
+      await end1v1Game();
+      // Navigation will happen via socket event
+    }
+  };
 
   // Handle rematch for 1v1 mode
   const handle1v1Rematch = () => {
@@ -594,7 +581,6 @@ const AppContent = () => {
   // Handler for navigation to welcome screen from dashboard
   const handleDashboardToWelcome = () => {
     // This sets a special flag indicating we came from Dashboard 
-    // The Welcome screen will check this to show/hide back button
     localStorage.setItem('navigationSource', 'dashboard');
     
     // Ensure username exists
@@ -608,74 +594,8 @@ const AppContent = () => {
     resetSoloGame();
     reset1v1Game();
     
-    setGameState('welcome');
-    
-    // Use React Router navigation - always go to welcome path
+    // Use React Router navigation
     navigate('/welcome');
-  };
-
-  // Determine which component to render based on game state
-  const renderGameContent = () => {
-    switch (gameState) {
-      case 'home':
-        return <Home onStart={handleHomeStart} />;
-      case 'welcome':
-        return <WelcomeScreen onStart={handleStart} />;
-      case 'category':
-        return (
-          <CategorySelect 
-            onSelect={handleCategorySelect}
-            mode={currentMode}
-            onBack={handleReturnToModeSelect}
-          />
-        );
-      case 'invite':
-        return (
-          <InviteSystem 
-            onJoinSuccess={handleInviteSuccess} 
-            onBackToMode={handleReturnToModeSelect}
-            selectedCategory={selectedCategory}
-          />
-        );
-      case 'loading':
-        return (
-          <div className="min-h-screen bg-background p-4 flex items-center justify-center">
-            <div className="text-white text-center p-8">
-              <h2 className="text-2xl font-bold mb-4">Loading Quiz...</h2>
-              <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
-                <div className="h-2 bg-green-500 rounded-full animate-pulse w-1/2"></div>
-              </div>
-            </div>
-          </div>
-        );
-      case 'lobby':
-        return (
-          <MultiplayerLobby 
-            onBackToCategory={handleBackToCategory}
-            onBackToMode={handleReturnToModeSelect}
-          />
-        );
-      case 'game':
-        return (
-          <QuizGame 
-            key={`game-${currentMode}-${soloPlayers[0]?.id || 'solo'}`}
-            mode={currentMode} 
-            onBackToCategory={handleBackToCategory}
-            onBackToMode={handleReturnToModeSelect}
-          />
-        );
-      case 'results':
-        return currentMode === 'solo' ? (
-          <SoloResultsScreen onPlayAgain={handlePlayAgain} onHome={handleReturnToModeSelect} />
-        ) : (
-          <OneVsOneResultsScreen 
-            onPlayAgain={handle1v1Rematch} 
-            onHome={handleReturnToModeSelect} 
-          />
-        );
-      default:
-        return <Home onStart={handleHomeStart} />;
-    }
   };
 
   return (
@@ -691,6 +611,7 @@ const AppContent = () => {
         <Route path="/auth/signup" element={<SignUp />} />
         <Route path="/auth/signin" element={<SignIn />} />
         <Route path="/auth/verification" element={<EmailVerification />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
         
         {/* Protected Dashboard Routes */}
         <Route path="/dashboard" element={
@@ -710,36 +631,51 @@ const AppContent = () => {
             <Settings />
           </ProtectedRoute>
         } />
-
-        <Route path="/auth/callback" element={<AuthCallback />} />
         
         {/* Static pages with their own routes */}
         <Route path="/faq" element={<FAQPage />} />
         <Route path="/about" element={<AboutPage />} />
         
-        {/* Welcome screen route - rendered conditionally based on game state */}
-        <Route path="/welcome" element={
-          <div className="min-h-screen bg-[#1a1a1a]">
-            {gameState === 'welcome' ? (
-              <WelcomeScreen onStart={handleStart} />
-            ) : gameState === 'category' ? (
-              <CategorySelect 
-                onSelect={handleCategorySelect}
-                mode={currentMode}
-                onBack={handleReturnToModeSelect}
-              />
-            ) : (
-              renderGameContent()
-            )}
-          </div>
+        {/* Game Flow Routes */}
+        <Route path="/" element={<Home onStart={handleHomeStart} />} />
+        <Route path="/welcome" element={<WelcomeScreen onStart={handleStart} />} />
+        <Route path="/category" element={
+          <CategorySelect 
+            onSelect={handleCategorySelect}
+            mode={currentMode}
+            onBack={handleReturnToModeSelect}
+          />
+        } />
+        <Route path="/invite" element={
+          <InviteSystem 
+            onJoinSuccess={handleInviteSuccess} 
+            onBackToMode={handleReturnToModeSelect}
+            selectedCategory={selectedCategory}
+          />
+        } />
+        <Route path="/lobby" element={
+          <MultiplayerLobby 
+            onBackToCategory={handleBackToCategory}
+            onBackToMode={handleReturnToModeSelect}
+          />
+        } />
+        <Route path="/game" element={
+          <QuizGame 
+            key={`game-${currentMode}-${soloPlayers[0]?.id || 'solo'}`}
+            mode={currentMode} 
+            onBackToCategory={handleBackToCategory}
+            onBackToMode={handleReturnToModeSelect}
+            onGameEnd={handleGameEnd}
+          />
+        } />
+        <Route path="/results" element={
+          currentMode === 'solo' 
+            ? <SoloResultsScreen onPlayAgain={handlePlayAgain} onHome={handleReturnToModeSelect} /> 
+            : <OneVsOneResultsScreen onPlayAgain={handle1v1Rematch} onHome={handleReturnToModeSelect} />
         } />
         
-        {/* Main game flow handled by state */}
-        <Route path="*" element={
-          <div className="min-h-screen bg-[#1a1a1a]">
-            {renderGameContent()}
-          </div>
-        } />
+        {/* Fallback route - redirect to home */}
+        <Route path="*" element={<Home onStart={handleHomeStart} />} />
       </Routes>
     </>
   );
