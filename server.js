@@ -435,33 +435,49 @@ io.on('connection', (socket) => {
 
   socket.on('requestRematch', async ({ gameId, playerId }) => {
     const game = activeGames.get(gameId);
-    if (!game) return;
+    if (!game) {
+      socket.emit('error', { message: 'Game not found for rematch' });
+      return;
+    }
+
+    console.log(`Player ${playerId} requested rematch in game ${gameId}`);
 
     const player = game.players.find(p => p.id === playerId);
-    if (!player) return;
+    if (!player) {
+      socket.emit('error', { message: 'Player not found in game' });
+      return;
+    }
 
+    // Mark this player as ready for rematch
     player.rematchReady = true;
+    
+    // Notify all players in the game about this rematch request
     io.to(gameId).emit('rematchRequested', { playerId });
+    console.log(`Notified all players in game ${gameId} of rematch request from ${playerId}`);
 
+    // Check if all players are ready for rematch in 1v1 mode
     const allRematch = game.mode === '1v1' && 
                       game.players.length === 2 && 
                       game.players.every(p => p.rematchReady);
 
     if (allRematch) {
       try {
+        console.log(`All players in game ${gameId} ready for rematch, resetting game state`);
+        
         // Fetch fresh questions from DB for rematch
         const newQuestions = await fetchQuestionsFromDB(game.category);
         
+        // Reset game state
         game.isGameStarted = false;
         game.isGameEnded = false;
         game.currentQuestion = 0;
         game.finishedPlayers = new Set();
         game.answeredPlayers = new Set();
         game.startCountdown = null;
-        game.chatMessages = [];
         game.questions = newQuestions;
         game.questionStartTime = Date.now();
         
+        // Reset player stats but keep player data
         game.players.forEach(p => {
           p.score = 0;
           p.isReady = false;
@@ -471,7 +487,9 @@ io.on('connection', (socket) => {
           game.scores.set(p.id, 0);
         });
 
-        io.to(gameId).emit('goToLobby', serializeGameState(game));
+        // Send the goToLobby event with the updated game state
+        const serializedGame = serializeGameState(game);
+        io.to(gameId).emit('goToLobby', serializedGame);
         
         console.log(`Game ${gameId} reset for rematch with new questions`);
       } catch (error) {
@@ -479,6 +497,24 @@ io.on('connection', (socket) => {
         io.to(gameId).emit('error', { message: 'Failed to set up rematch' });
       }
     }
+  });
+
+  // Enhanced gameOver event handler for manual game ending
+  socket.on('gameOver', ({ gameId }) => {
+    console.log(`Manual gameOver requested for game: ${gameId}`);
+    
+    const game = activeGames.get(gameId);
+    if (!game) {
+      socket.emit('error', { message: 'Game not found' });
+      return;
+    }
+    
+    // Mark the game as ended
+    game.isGameEnded = true;
+    
+    // Emit gameOver event to all players in the game
+    io.to(gameId).emit('gameOver', serializeGameState(game));
+    console.log(`Game ${gameId} manually ended`);
   });
 
   socket.on('updateCategory', async ({ gameId, category }) => {
@@ -594,12 +630,12 @@ io.on('connection', (socket) => {
       game.answeredPlayers.clear();
       
       if (game.currentQuestion < 9) {
-        console.log('Delaying next question by 1 second...');
-        
+        // Not the last question, proceed to next question after a delay
         setTimeout(() => {
           game.currentQuestion++;
           game.questionStartTime = Date.now();
           
+          // Update scores for all players
           game.players.forEach(player => {
             io.to(gameId).emit('scoreUpdate', { 
               playerId: player.id, 
@@ -613,14 +649,20 @@ io.on('connection', (socket) => {
             });
           });
           
+          // Send next question event
           io.to(gameId).emit('nextQuestion', serializeGameState(game));
-          console.log(`(1v1) After 1s delay, sending nextQuestion #${game.currentQuestion} in game: ${gameId}`);
+          console.log(`After delay, sending nextQuestion #${game.currentQuestion} in game: ${gameId}`);
         }, 1000);
       } else {
         // This was the last question, trigger game over after a delay
         setTimeout(() => {
           game.isGameEnded = true;
-          io.to(gameId).emit('gameOver', serializeGameState(game));
+          
+          // Make sure we have the latest state for all players
+          const serializedGameState = serializeGameState(game);
+          
+          // Emit gameOver event to all clients
+          io.to(gameId).emit('gameOver', serializedGameState);
           console.log(`Game ${gameId} ended - all questions answered`);
         }, 2000);
       }
@@ -639,15 +681,6 @@ io.on('connection', (socket) => {
       io.to(gameId).emit('gameOver', serializeGameState(game));
       console.log(`Game ${gameId} ended - all players finished`);
     }
-  });
-
-  socket.on('gameOver', ({ gameId }) => {
-    const game = activeGames.get(gameId);
-    if (!game) return;
-    
-    game.isGameEnded = true;
-    io.to(gameId).emit('gameOver', serializeGameState(game));
-    console.log(`Game ${gameId} manually ended`);
   });
 
   socket.on('chatMessage', ({ gameId, message }) => {
