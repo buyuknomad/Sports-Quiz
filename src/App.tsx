@@ -235,62 +235,62 @@ const AppContent = () => {
     }
   };
 
-  const handlePlayAgain = async () => {
-  const username = localStorage.getItem('username') || 'Guest';
-  
-  // Track play again action
-  trackEvent('play_again', { mode: currentMode, category: selectedCategory });
-  
-  // Clear question cache to get fresh questions on restart
-  clearQuestionCache();
-  
-  if (currentMode === 'solo') {
-    // Reset the solo game state completely
-    resetSoloGame();
+  // Handle rematch for 1v1 mode
+  const handle1v1Rematch = () => {
+    // This will be called from the results screen
+    const currentPlayer = getCurrentPlayer();
+    if (!currentPlayer) {
+      console.error('Cannot request rematch: No current player found');
+      return;
+    }
     
-    // Initialize a new game
-    await initializeSoloGame('solo');
+    // Track rematch request
+    trackEvent('rematch_requested', {
+      mode: '1v1',
+      category: selectedCategory,
+      player_id: currentPlayer.id
+    });
     
-    // Add the player back with the same username
-    addPlayer(username);
+    console.log('Requesting rematch for player:', currentPlayer.id);
     
-    // Navigate to category selection
-    navigate('/category');
-  } else {
-    // For 1v1 mode, we need to handle the rematch differently
-    // since we're using the socket-based approach
-    console.log('1v1 rematch - calling handle1v1Rematch function');
-    
-    // This will call requestRematch on the current player
-    handle1v1Rematch();
-    
-    // Note: Navigation back to lobby happens via socket events and custom event listeners
-    // The server will send a 'goToLobby' event when both players are ready
-    // This triggers a 'sportiq:returnToLobby' custom event which is handled in App.tsx
-  }
-};
+    // Just request a rematch using the store function
+    requestRematch(currentPlayer.id);
+  };
 
-// Handle rematch for 1v1 mode
-const handle1v1Rematch = () => {
-  // This will be called from the results screen
-  const currentPlayer = getCurrentPlayer();
-  if (!currentPlayer) {
-    console.error('Cannot request rematch: No current player found');
-    return;
-  }
-  
-  // Track rematch request
-  trackEvent('rematch_requested', {
-    mode: '1v1',
-    category: selectedCategory,
-    player_id: currentPlayer.id
-  });
-  
-  console.log('Requesting rematch for player:', currentPlayer.id);
-  
-  // Just request a rematch using the store function
-  requestRematch(currentPlayer.id);
-};
+  const handlePlayAgain = async () => {
+    const username = localStorage.getItem('username') || 'Guest';
+    
+    // Track play again action
+    trackEvent('play_again', { mode: currentMode, category: selectedCategory });
+    
+    // Clear question cache to get fresh questions on restart
+    clearQuestionCache();
+    
+    if (currentMode === 'solo') {
+      // Reset the solo game state completely
+      resetSoloGame();
+      
+      // Initialize a new game
+      await initializeSoloGame('solo');
+      
+      // Add the player back with the same username
+      addPlayer(username);
+      
+      // Navigate to category selection
+      navigate('/category');
+    } else {
+      // For 1v1 mode, we need to handle the rematch differently
+      // since we're using the socket-based approach
+      console.log('1v1 rematch - calling handle1v1Rematch function');
+      
+      // Call the rematch handler function
+      handle1v1Rematch();
+      
+      // Note: Navigation back to lobby happens via socket events and custom event listeners
+      // The server will send a 'goToLobby' event when both players are ready
+      // This triggers a 'sportiq:returnToLobby' custom event which is handled in App.tsx
+    }
+  };
 
   const handleInviteSuccess = () => {
     // Track successful invitation
@@ -579,23 +579,6 @@ const handle1v1Rematch = () => {
       await end1v1Game();
       // Navigation will happen via socket event
     }
-  };
-
-  // Handle rematch for 1v1 mode
-  const handle1v1Rematch = () => {
-    // This will be called from the results screen
-    const currentPlayer = getCurrentPlayer();
-    if (!currentPlayer) return;
-    
-    // Track rematch request
-    trackEvent('rematch_requested', {
-      mode: '1v1',
-      category: selectedCategory,
-      player_id: currentPlayer.id
-    });
-    
-    // Just request a rematch using the store function
-    requestRematch(currentPlayer.id);
   };
 
   // Create analytics params object with current state info
