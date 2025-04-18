@@ -164,26 +164,28 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
   };
 
   // Effect to handle game ending when the last question is answered
-  useEffect(() => {
-    // Don't do anything if:
-    // - Not the last question
-    // - Answer not checked yet
-    // - Game ending already triggered
-    // - Game already ended
-    // - No onGameEnd callback
-   // In QuizGame.tsx
+// This is a partial update for the QuizGame.tsx file focusing on the critical parts that need fixing
+
 useEffect(() => {
-  if (isLastQuestion && isAnswerChecked && !endingTriggered && !isGameEnded && onGameEnd) {
-    console.log('Last question answered, preparing to end game');
-    
-    const timer = setTimeout(() => {
-      console.log('Triggering game end after last question');
-      setEndingTriggered(true);
-      onGameEnd();
-    }, 2500); // Wait for answer feedback to be displayed
-    
-    return () => clearTimeout(timer);
+  // Don't do anything if:
+  // - Not the last question
+  // - Answer not checked yet
+  // - Game ending already triggered
+  // - Game already ended
+  // - No onGameEnd callback
+  if (!isLastQuestion || !isAnswerChecked || endingTriggered || isGameEnded || !onGameEnd) {
+    return;
   }
+
+  console.log('Last question answered, preparing to end game');
+  
+  const timer = setTimeout(() => {
+    console.log('Triggering game end after last question');
+    setEndingTriggered(true);
+    onGameEnd();
+  }, 2500); // Wait for answer feedback to be displayed
+  
+  return () => clearTimeout(timer);
 }, [isLastQuestion, isAnswerChecked, endingTriggered, isGameEnded, onGameEnd]);
 
   useEffect(() => {
