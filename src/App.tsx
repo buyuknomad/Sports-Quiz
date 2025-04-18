@@ -257,8 +257,11 @@ const AppContent = () => {
     requestRematch(currentPlayer.id);
   };
 
+  // UPDATED handlePlayAgain function with improved state synchronization
   const handlePlayAgain = async () => {
+    // Get the current state for tracking
     const username = localStorage.getItem('username') || 'Guest';
+    console.log('Starting handlePlayAgain for mode:', currentMode);
     
     // Track play again action
     trackEvent('play_again', { mode: currentMode, category: selectedCategory });
@@ -266,29 +269,50 @@ const AppContent = () => {
     // Clear question cache to get fresh questions on restart
     clearQuestionCache();
     
-    if (currentMode === 'solo') {
-      // Reset the solo game state completely
-      resetSoloGame();
-      
-      // Initialize a new game
-      await initializeSoloGame('solo');
-      
-      // Add the player back with the same username
-      addPlayer(username);
-      
-      // Navigate to category selection
-      navigate('/category');
-    } else {
-      // For 1v1 mode, we need to handle the rematch differently
-      // since we're using the socket-based approach
-      console.log('1v1 rematch - calling handle1v1Rematch function');
-      
-      // Call the rematch handler function
-      handle1v1Rematch();
-      
-      // Note: Navigation back to lobby happens via socket events and custom event listeners
-      // The server will send a 'goToLobby' event when both players are ready
-      // This triggers a 'sportiq:returnToLobby' custom event which is handled in App.tsx
+    try {
+      if (currentMode === 'solo') {
+        // Create a promise that completes when the game is fully reset
+        const resetPromise = new Promise<void>((resolve) => {
+          // Reset the solo game state completely - synchronous operation
+          console.log('Resetting solo game state');
+          resetSoloGame();
+          
+          // Small delay to ensure reset is processed
+          setTimeout(resolve, 100);
+        });
+        
+        // Wait for reset to complete
+        await resetPromise;
+        
+        // Initialize a new game - this should be quick but is async
+        console.log('Initializing new solo game');
+        await initializeSoloGame('solo');
+        
+        // Add the player back with the same username
+        console.log('Adding player back with username:', username);
+        addPlayer(username);
+        
+        // We've now completely finished all setup before navigation
+        console.log('All setup complete, navigating to category selection');
+        
+        // Navigate to category selection - this is the final step
+        navigate('/category');
+      } else {
+        // For 1v1 mode, we need to handle the rematch differently
+        // since we're using the socket-based approach
+        console.log('1v1 rematch - calling handle1v1Rematch function');
+        
+        // Call the rematch handler function
+        handle1v1Rematch();
+        
+        // Note: Navigation back to lobby happens via socket events and custom event listeners
+        // The server will send a 'goToLobby' event when both players are ready
+        // This triggers a 'sportiq:returnToLobby' custom event which is handled in App.tsx
+      }
+    } catch (error) {
+      console.error('Error in handlePlayAgain:', error);
+      // If there was an error, we might need to display an error message
+      // or reset the state to allow another attempt
     }
   };
 
