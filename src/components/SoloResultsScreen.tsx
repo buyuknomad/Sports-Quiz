@@ -5,7 +5,6 @@ import {
   CheckCircle, XCircle, Zap, Copy, X, Facebook, 
   MessageCircle, Link as LinkIcon, Loader2
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
 import { useGameStore } from '../store/gameStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Category } from '../types';
@@ -164,13 +163,7 @@ const ShareModal = ({
     setLoading(true);
     
     setTimeout(() => {
-      // Show confetti effect on successful share
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
-      
+      // Removed confetti effect
       onShowToast('Results shared successfully!');
       setLoading(false);
       setTimeout(() => {
@@ -490,10 +483,10 @@ const SoloResultsScreen = React.memo<SoloResultsScreenProps>(({ onPlayAgain, onH
   const [toast, setToast] = useState<string | null>(null);
   
   // No need for challenge ID as we're just linking to homepage
-  const totalQuestions = questions.length;
+  const totalQuestions = questions.length || 10; // Default to 10 if questions array is empty
   const score = player?.score || 0;
   const maxPossibleScore = totalQuestions * 15; // Each question is worth 15 points max
-  const accuracy = (score / maxPossibleScore) * 100;
+  const accuracy = totalQuestions > 0 ? (score / maxPossibleScore) * 100 : 0;
   
   // More engaging share text
   const getShareText = () => {
@@ -530,38 +523,20 @@ const SoloResultsScreen = React.memo<SoloResultsScreenProps>(({ onPlayAgain, onH
     setTimeout(() => setToast(null), 3000);
   };
 
-  useEffect(() => {
-    const duration = 3000;
-    const animationEnd = Date.now() + duration;
-    const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
-
-    const randomInRange = (min: number, max: number) => {
-      return Math.random() * (max - min) + min;
-    };
-
-    const interval: NodeJS.Timer = setInterval(() => {
-      const timeLeft = animationEnd - Date.now();
-
-      if (timeLeft <= 0) {
-        return clearInterval(interval);
-      }
-
-      const particleCount = 50 * (timeLeft / duration);
-
-      confetti({
-        ...defaults,
-        particleCount,
-        origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }
-      });
-      confetti({
-        ...defaults,
-        particleCount,
-        origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }
-      });
-    }, 250);
-
-    return () => clearInterval(interval);
-  }, []);
+  // Modified handlePlayAgain wrapper that prevents rapidly clicking the button
+  const [isPlayingAgain, setIsPlayingAgain] = useState(false);
+  
+  const handlePlayAgainClick = useCallback(() => {
+    if (isPlayingAgain) return;
+    
+    setIsPlayingAgain(true);
+    onPlayAgain();
+    
+    // Reset the button after a timeout to prevent double-clicks
+    setTimeout(() => {
+      setIsPlayingAgain(false);
+    }, 1000);
+  }, [onPlayAgain, isPlayingAgain]);
 
   const handleShare = useCallback(() => {
     // Skip native sharing and always use our custom modal
@@ -609,7 +584,7 @@ const SoloResultsScreen = React.memo<SoloResultsScreenProps>(({ onPlayAgain, onH
 
         <div className="mt-8">
           <ActionButtons
-            onPlayAgain={onPlayAgain}
+            onPlayAgain={handlePlayAgainClick}
             onHome={onHome}
             onShare={handleShare}
           />
