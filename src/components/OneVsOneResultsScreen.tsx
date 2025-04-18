@@ -6,7 +6,6 @@ import {
   Facebook, MessageCircle, Link as LinkIcon, Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import confetti from 'canvas-confetti';
 import { useOneVsOneStore } from '../store/oneVsOneStore';
 import type { Category } from '../types';
 import EnhancedNavBar from './layout/EnhancedNavBar';
@@ -169,13 +168,7 @@ const ShareModal = ({
     setLoading(true);
     
     setTimeout(() => {
-      // Show confetti effect on successful share
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
-      
+      // Removed confetti effect
       onShowToast('Results shared successfully!');
       setLoading(false);
       setTimeout(() => {
@@ -698,42 +691,6 @@ export const OneVsOneResultsScreen: React.FC<OneVsOneResultsScreenProps> = ({ on
     // Reset the share text when opening the modal
     setCustomShareText(getShareText());
   }, [getShareText]);
-
-  // Trigger confetti effect on mount
-  useEffect(() => {
-    if (!isTied && winner) {
-      const duration = 3000;
-      const animationEnd = Date.now() + duration;
-      const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
-
-      const randomInRange = (min: number, max: number) => {
-        return Math.random() * (max - min) + min;
-      };
-
-      const interval: NodeJS.Timer = setInterval(() => {
-        const timeLeft = animationEnd - Date.now();
-
-        if (timeLeft <= 0) {
-          return clearInterval(interval);
-        }
-
-        const particleCount = 50 * (timeLeft / duration);
-
-        confetti({
-          ...defaults,
-          particleCount,
-          origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }
-        });
-        confetti({
-          ...defaults,
-          particleCount,
-          origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }
-        });
-      }, 250);
-
-      return () => clearInterval(interval);
-    }
-  }, [isTied, winner]);
   
   // Clear timeout when unmounting
   useEffect(() => {
