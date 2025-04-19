@@ -260,8 +260,8 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
 
   // --- Category Icon Logic ---
   const categoryConfig = { /* ... */ };
-  const currentCategoryConfig = category ? categoryConfig[category] : categoryConfig.mixed;
-  const CategoryIcon = currentCategoryConfig.icon;
+  const currentCategoryConfig = (category && categoryConfig[category]) || categoryConfig.mixed;   
+  const CategoryIcon = currentCategoryConfig.icon;
 
   // --- Loading / Ended States ---
   if (isGameEnded) {
