@@ -335,11 +335,52 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
 
 
   // --- Loading / Ended States ---
+  // --- Loading / Ended States ---
   if (isGameEnded) {
-    return ( /* ... existing loading results JSX ... */ );
+    // Replace the comment with the actual loading JSX
+    return ( 
+        <div className="text-white text-center p-8 flex flex-col items-center justify-center min-h-screen">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="card p-8 max-w-md"
+          >
+            <h2 className="text-2xl font-bold mb-4">Game completed!</h2>
+            <p className="mb-4">Loading results...</p>
+            <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+              <motion.div 
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ duration: 1 }}
+                className="h-2 bg-green-500 rounded-full"
+              />
+            </div>
+          </motion.div>
+        </div>
+      );
   }
   if (!question) {
-    return ( /* ... existing loading questions JSX ... */ );
+    // Replace the comment with the actual loading JSX
+    return ( 
+        <div className="text-white text-center p-8 flex flex-col items-center justify-center min-h-screen">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="card p-8 max-w-md"
+          >
+            <h2 className="text-2xl font-bold mb-4">Loading...</h2>
+            <p className="mb-4">Preparing questions</p>
+            <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+              <motion.div 
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ duration: 1 }}
+                className="h-2 bg-blue-500 rounded-full w-1/2" // Or adjust progress animation if needed
+              />
+            </div>
+          </motion.div>
+        </div>
+      );
   }
 
   // --- Render Logic ---
