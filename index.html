@@ -9,6 +9,30 @@
 
       gtag('config', 'G-K3CZGYNSLS');
     </script>
+    
+    <!-- Circuit breaker to prevent TDZ errors related to React routing -->
+    <script>
+      // Circuit breaker to prevent TDZ errors related to React routing
+      window.addEventListener('error', function(event) {
+        // Check if this is the specific error we're trying to catch
+        if (event.error && event.error.message && event.error.message.includes("Cannot access 'd' before initialization")) {
+          console.warn('Caught TDZ error, reloading to recover');
+          // If in solo mode, reload the page
+          if (window.location.pathname === '/game') {
+            sessionStorage.setItem('recover_attempt', '1');
+            window.location.reload();
+            event.preventDefault(); // Prevent the error from propagating
+          }
+        }
+      });
+      
+      // Check if we're recovering from an error
+      if (sessionStorage.getItem('recover_attempt') === '1') {
+        console.log('Recovering from error, clearing state');
+        sessionStorage.removeItem('recover_attempt');
+      }
+    </script>
+    
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
@@ -51,6 +75,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="SportIQ">
     <meta name="application-name" content="SportIQ">
+    <meta name="mobile-web-app-capable" content="yes">
     
     <!-- Favicons and App Icons -->
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
