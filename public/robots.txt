@@ -5,18 +5,29 @@ Host: sportiq.games
 # Allow indexing of main pages
 Allow: /
 Allow: /welcome
-Allow: /categories
+Allow: /category
+Allow: /about
+Allow: /faq
+Allow: /auth/signin
+Allow: /auth/signup
 
-# Disallow gameplay-specific areas (client-side only)
+# Disallow gameplay-specific areas (client-side routes)
 Disallow: /game/
+Disallow: /game
 Disallow: /invite/
+Disallow: /invite
 Disallow: /lobby/
+Disallow: /lobby
 Disallow: /results/
+Disallow: /results
 
 # Disallow admin and management areas
 Disallow: /admin/
 Disallow: /manage/
 Disallow: /dashboard/
+Disallow: /dashboard
+Disallow: /history
+Disallow: /settings
 
 # Disallow API endpoints and socket connections
 Disallow: /api/
