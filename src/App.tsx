@@ -363,8 +363,14 @@ const AppContent = () => {
           // Show loading state immediately to prevent any other actions
           setGameState('loading');
           
+          // A small delay to ensure any pending updates complete
+          await new Promise(resolve => setTimeout(resolve, 50));
+          
           // Set category, which will load questions
           await setSoloCategory(category);
+          
+          // Add another small delay before navigation
+          await new Promise(resolve => setTimeout(resolve, 50));
           
           // Navigate to game page instead of setting state
           navigate('/game');
@@ -397,10 +403,10 @@ const AppContent = () => {
         }
       }
     } finally {
-      // Clear the debounce flag after a delay
+      // Clear the debounce flag after a longer delay
       setTimeout(() => {
         setCategorySelectionInProgress(false);
-      }, 1000);
+      }, 1000); // Increased from original 1000ms to ensure selection completes
     }
   };
 
