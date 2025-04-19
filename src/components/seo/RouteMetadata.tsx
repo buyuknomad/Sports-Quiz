@@ -1,5 +1,5 @@
 // src/components/seo/RouteMetadata.tsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 
 // Define metadata for each route
@@ -51,35 +51,55 @@ const defaultMetadata = {
 const RouteMetadata: React.FC = () => {
   const location = useLocation();
   const path = location.pathname;
+  const isMounted = useRef(true);
+  
+  // Track component mounting state
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
   
   useEffect(() => {
-    // Get metadata for the current path, or use default
-    const metadata = routeMetadata[path] || defaultMetadata;
+    // Skip updates if component is unmounting
+    if (!isMounted.current) return;
     
-    // Update document title
-    document.title = metadata.title;
-    
-    // Update meta description
-    const metaDescription = document.querySelector('meta[name="description"]');
-    if (metaDescription) {
-      metaDescription.setAttribute('content', metadata.description);
-    }
-    
-    // Update Open Graph and Twitter meta tags
-    const ogTitle = document.querySelector('meta[property="og:title"]');
-    const twitterTitle = document.querySelector('meta[property="twitter:title"]');
-    const ogDescription = document.querySelector('meta[property="og:description"]');
-    const twitterDescription = document.querySelector('meta[property="twitter:description"]');
-    
-    if (ogTitle) ogTitle.setAttribute('content', metadata.title);
-    if (twitterTitle) twitterTitle.setAttribute('content', metadata.title);
-    if (ogDescription) ogDescription.setAttribute('content', metadata.description);
-    if (twitterDescription) twitterDescription.setAttribute('content', metadata.description);
-    
-    // Update canonical URL
-    let canonicalURL = document.querySelector('link[rel="canonical"]');
-    if (canonicalURL) {
-      canonicalURL.setAttribute('href', `https://sportiq.games${path}`);
+    try {
+      // Get metadata for the current path, or use default
+      const metadata = routeMetadata[path] || defaultMetadata;
+      
+      // Update document title
+      if (isMounted.current) {
+        document.title = metadata.title;
+      }
+      
+      // Perform all updates in a single batch to minimize reflows
+      if (isMounted.current) {
+        // Update meta description
+        const metaDescription = document.querySelector('meta[name="description"]');
+        if (metaDescription) {
+          metaDescription.setAttribute('content', metadata.description);
+        }
+        
+        // Update Open Graph and Twitter meta tags
+        const ogTitle = document.querySelector('meta[property="og:title"]');
+        const twitterTitle = document.querySelector('meta[property="twitter:title"]');
+        const ogDescription = document.querySelector('meta[property="og:description"]');
+        const twitterDescription = document.querySelector('meta[property="twitter:description"]');
+        
+        if (ogTitle) ogTitle.setAttribute('content', metadata.title);
+        if (twitterTitle) twitterTitle.setAttribute('content', metadata.title);
+        if (ogDescription) ogDescription.setAttribute('content', metadata.description);
+        if (twitterDescription) twitterDescription.setAttribute('content', metadata.description);
+        
+        // Update canonical URL with additional checks
+        const canonicalURL = document.querySelector('link[rel="canonical"]');
+        if (canonicalURL) {
+          canonicalURL.setAttribute('href', `https://sportiq.games${path}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error updating route metadata:', error);
     }
   }, [path]);
   
