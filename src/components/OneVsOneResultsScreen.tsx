@@ -1,4 +1,5 @@
-// Enhanced 1v1 Results screen component with improved sharing and EnhancedNavBar
+// Complete fixed version of OneVsOneResultsScreen.tsx
+
 import React, { useEffect, useCallback, useState } from 'react';
 import { 
   Trophy, Home, RotateCw, Share2, Timer, Target, Award, 
@@ -63,7 +64,7 @@ const Toast = ({ message, onClose }: { message: string; onClose: () => void }) =
   </motion.div>
 );
 
-// Memoized answer distribution chart component
+// Fixed answer distribution chart component
 const AnswerDistributionChart = React.memo(({ 
   correctAnswers, 
   incorrectAnswers, 
@@ -72,49 +73,55 @@ const AnswerDistributionChart = React.memo(({
   correctAnswers: number;
   incorrectAnswers: number;
   totalQuestions: number;
-}) => (
-  <div className="space-y-4">
-    <div className="flex items-center gap-4">
-      <div className="flex-1">
-        <div className="flex justify-between items-center mb-1">
-          <span className="text-green-400 flex items-center gap-1">
-            <CheckCircle size={16} /> Correct
-          </span>
-          <span className="text-green-400 font-bold">{correctAnswers}</span>
+}) => {
+  // Calculate percentages correctly
+  const correctPercentage = Math.round((correctAnswers / totalQuestions) * 100);
+  const incorrectPercentage = Math.round((incorrectAnswers / totalQuestions) * 100);
+  
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-4">
+        <div className="flex-1">
+          <div className="flex justify-between items-center mb-1">
+            <span className="text-green-400 flex items-center gap-1">
+              <CheckCircle size={16} /> Correct
+            </span>
+            <span className="text-green-400 font-bold">{correctAnswers}</span>
+          </div>
+          <div className="h-3 bg-gray-700 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-green-500 transition-all duration-1000"
+              style={{ width: `${correctPercentage}%` }}
+            />
+          </div>
         </div>
-        <div className="h-3 bg-gray-700 rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-green-500 transition-all duration-1000"
-            style={{ width: `${(correctAnswers / totalQuestions) * 100}%` }}
-          />
+        <div className="w-12 text-center text-gray-400">
+          {correctPercentage}%
         </div>
       </div>
-      <div className="w-12 text-center text-gray-400">
-        {((correctAnswers / totalQuestions) * 100).toFixed(0)}%
-      </div>
-    </div>
 
-    <div className="flex items-center gap-4">
-      <div className="flex-1">
-        <div className="flex justify-between items-center mb-1">
-          <span className="text-red-400 flex items-center gap-1">
-            <XCircle size={16} /> Incorrect
-          </span>
-          <span className="text-red-400 font-bold">{incorrectAnswers}</span>
+      <div className="flex items-center gap-4">
+        <div className="flex-1">
+          <div className="flex justify-between items-center mb-1">
+            <span className="text-red-400 flex items-center gap-1">
+              <XCircle size={16} /> Incorrect
+            </span>
+            <span className="text-red-400 font-bold">{incorrectAnswers}</span>
+          </div>
+          <div className="h-3 bg-gray-700 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-red-500 transition-all duration-1000"
+              style={{ width: `${incorrectPercentage}%` }}
+            />
+          </div>
         </div>
-        <div className="h-3 bg-gray-700 rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-red-500 transition-all duration-1000"
-            style={{ width: `${(incorrectAnswers / totalQuestions) * 100}%` }}
-          />
+        <div className="w-12 text-center text-gray-400">
+          {incorrectPercentage}%
         </div>
-      </div>
-      <div className="w-12 text-center text-gray-400">
-        {((incorrectAnswers / totalQuestions) * 100).toFixed(0)}%
       </div>
     </div>
-  </div>
-));
+  );
+});
 
 AnswerDistributionChart.displayName = 'AnswerDistributionChart';
 
@@ -344,7 +351,7 @@ const ShareModal = ({
   );
 };
 
-// Enhanced player stats component
+// Fixed player stats component with correct calculations
 const PlayerStats = React.memo(({ 
   player,
   isWinner,
@@ -364,16 +371,15 @@ const PlayerStats = React.memo(({
   const score = player.score || 0;
   
   // First try to get correctAnswers directly from player if available
-  let correctAnswers = player.correctAnswers;
+  // But ensure it's a valid number and doesn't exceed totalQuestions
+  let correctAnswers = typeof player.correctAnswers === 'number' ? player.correctAnswers : 0;
+  correctAnswers = Math.min(correctAnswers, totalQuestions);
   
-  // If correctAnswers isn't available, estimate from score
-  // Each correct answer gives 10 base points + up to 5 bonus points
-  if (correctAnswers === undefined) {
-    correctAnswers = Math.floor(score / 15); // Each correct answer is worth up to 15 points max
-  }
-  
+  // Calculate incorrectAnswers safely
   const incorrectAnswers = totalQuestions - correctAnswers;
-  const accuracy = (score / maxPossibleScore) * 100;
+  
+  // Calculate accuracy based on correct answers, not score
+  const accuracy = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
   
   // Calculate response times
   const validResponseTimes = playerResponseTimes.filter(time => time > 0 && time <= 15);
