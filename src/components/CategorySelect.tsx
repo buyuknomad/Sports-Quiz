@@ -1,4 +1,4 @@
-// Enhanced category selection component with nav bar, back button, animations and footer
+// Enhanced category selection component with SEO improvements
 import React, { useEffect, useState } from 'react';
 import { Trophy, Target, Circle, Medal, Dumbbell, ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -7,8 +7,8 @@ import type { Category, GameMode } from '../types';
 import { NavigationButton } from './navigation';
 import { NAVIGATION_LABELS } from '../constants/navigation';
 import EnhancedNavBar from './layout/EnhancedNavBar';
-// Import Footer component
 import Footer from './layout/Footer';
+import { useCategoryMetadata } from '../hooks/useCategoryMetadata';
 
 interface CategorySelectProps {
   onSelect: (category: Category) => void;
@@ -60,6 +60,27 @@ export const CategorySelect: React.FC<CategorySelectProps> = ({
   const currentPlayer = getCurrentPlayer();
   const isHost = currentPlayer?.isHost;
   const [isSelecting, setIsSelecting] = useState(false);
+  // State to track hovered category for metadata preview
+  const [hoveredCategory, setHoveredCategory] = useState<Category | null>(null);
+  
+  // Use our custom metadata hook
+  // Pass hoveredCategory or null to update metadata when user hovers on categories
+  useCategoryMetadata(hoveredCategory);
+
+  useEffect(() => {
+    // Set default page title and description when component mounts
+    document.title = "Choose a Sports Category - SportIQ Quiz";
+    const metaDescription = document.querySelector('meta[name="description"]');
+    if (metaDescription) {
+      metaDescription.setAttribute('content', 
+        'Select from football, basketball, tennis, Olympics, or mixed sports categories to test your knowledge in our interactive sports quiz.');
+    }
+    
+    return () => {
+      // Reset hovered category when component unmounts
+      setHoveredCategory(null);
+    };
+  }, []);
 
   useEffect(() => {
     if (mode !== 'solo' && hasJoinedGame) {
@@ -73,7 +94,6 @@ export const CategorySelect: React.FC<CategorySelectProps> = ({
   if (mode !== 'solo' && hasJoinedGame && !isHost) {
     return (
       <div className="flex flex-col min-h-screen bg-gradient-to-b from-[#0c1220] to-[#1a1a2e]">
-        {/* Added EnhancedNavBar */}
         <EnhancedNavBar variant="minimal" position="float" />
         
         <div className="flex-grow flex items-center justify-center p-4">
@@ -143,7 +163,6 @@ export const CategorySelect: React.FC<CategorySelectProps> = ({
 
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-b from-[#0c1220] to-[#1a1a2e]">
-      {/* Add EnhancedNavBar */}
       <EnhancedNavBar variant="minimal" position="top-right" />
 
       {/* Back button to mode selection */}
@@ -185,6 +204,8 @@ export const CategorySelect: React.FC<CategorySelectProps> = ({
                 whileHover={{ scale: 1.02, y: -5 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => handleCategorySelect(id as Category)}
+                onMouseEnter={() => setHoveredCategory(id as Category)}
+                onMouseLeave={() => setHoveredCategory(null)}
                 disabled={isSelecting}
                 className={`group relative bg-gray-800 rounded-2xl p-6 sm:p-8 overflow-hidden ${isSelecting ? 'opacity-70 cursor-not-allowed' : ''}`}
               >
@@ -234,7 +255,6 @@ export const CategorySelect: React.FC<CategorySelectProps> = ({
         </div>
       </div>
       
-      {/* Add Footer component */}
       <Footer />
       
       {/* Background animated sport icons - similar to welcome page */}
@@ -264,5 +284,3 @@ export const CategorySelect: React.FC<CategorySelectProps> = ({
     </div>
   );
 };
-
-export default CategorySelect;
