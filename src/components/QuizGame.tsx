@@ -8,7 +8,7 @@ import {
   Medal, Dumbbell, ArrowLeft, Home, LogOut
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { GameMode, Category } from '../types';
+import type { GameMode, Category, Question } from '../types'; // Ensure Question is imported
 import { NavigationButton, ConfirmationDialog } from './navigation';
 import { NAVIGATION_LABELS, CONFIRMATION_MESSAGES } from '../constants/navigation';
 import NoIndexTag from './seo/NoIndexTag';
@@ -73,7 +73,7 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
   // --- Derived State ---
   const currentPlayer = getCurrentPlayer();
   const isHost = currentPlayer?.isHost;
-  const question = questions[currentQuestion];
+  const question: Question | undefined = questions[currentQuestion]; // Explicitly type question
   const isMultiplayer = mode !== 'solo';
   const isLastQuestion = currentQuestion === questions.length - 1;
 
@@ -135,7 +135,17 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
   }, [category]);
 
   // --- Other Effects ---
-  useEffect(() => { console.log('QuizGame component mounted for mode:', mode); return () => { console.log('QuizGame component unmounting'); }; }, [mode]); // Keep mount logs for now if useful
+  useEffect(() => { console.log('QuizGame component mounted for mode:', mode); return () => { console.log('QuizGame component unmounting'); }; }, [mode]);
+
+  // Monitor question changes <<< ADDED BACK THE QUESTION LOGGING EFFECT >>>
+  useEffect(() => {
+    if (question) {
+      console.log(`Current question (${currentQuestion}):`, question.question.substring(0, 30) + '...');
+    } else {
+      console.log('No question available yet');
+    }
+  }, [question, currentQuestion]);
+
   useEffect(() => {
     if (!isLastQuestion || !isAnswerChecked || endingTriggered || isGameEnded || !onGameEnd) return;
     const timer = setTimeout(() => { setEndingTriggered(true); if (onGameEnd) onGameEnd(); else console.warn("onGameEnd prop is missing"); }, 2500);
@@ -143,10 +153,11 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
   }, [isLastQuestion, isAnswerChecked, endingTriggered, isGameEnded, onGameEnd]);
   useEffect(() => {
     if (question) {
+      // Log removed from here, now in separate effect above
       setIsButtonEnabled(true); setSelectedAnswer(null); setIsAnswerChecked(false); setIsCorrect(false);
       setLocalTime(15); setEarnedPoints(0); setCurrentBonusTier(null); setCurrentCorrectAnswer(null);
     }
-  }, [currentQuestion, question]);
+  }, [currentQuestion, question]); // Keep dependencies
   useEffect(() => {
     let timer: NodeJS.Timeout | undefined = undefined;
     if (!isAnswerChecked && !isGameEnded && isButtonEnabled && question) {
@@ -189,10 +200,10 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
     if (tier.points >= 1) return 'text-orange-400';
     return 'text-gray-400';
   };
-  const getResponseTimeColor = (responseTime: number): string => { // Changed parameter name for clarity
-    if (responseTime < 5) return 'text-green-400'; // Fast response (< 5s)
-    if (responseTime < 10) return 'text-yellow-400'; // Medium response (5-10s)
-    return 'text-orange-400'; // Slow response (> 10s)
+  const getResponseTimeColor = (responseTime: number): string => { // responseTime is time TAKEN (0-15)
+    if (responseTime < 5) return 'text-green-400';   // < 5s
+    if (responseTime < 10) return 'text-yellow-400'; // 5s to 10s
+    return 'text-orange-400'; // > 10s
   };
 
 
@@ -206,6 +217,7 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
       </div>
     );
   }
+  // IMPORTANT: Access 'question' only AFTER this check
   if (!question) {
     return (
       <div className="text-white text-center p-8 flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-[#0c1220] to-[#1a1a2e]">
@@ -219,9 +231,8 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
   // --- Prepare Data for Render (AFTER loading checks) ---
   const questionNumber = currentQuestion + 1;
   const currentPlayerResponseTimes = currentPlayer ? getPlayerResponseTimes(currentPlayer.id) : [];
-  const lastResponseTimeRaw = currentPlayerResponseTimes[currentPlayerResponseTimes.length - 1];
-  // Calculate display time from raw response time (time taken = 15 - time remaining when answered)
-  const lastResponseTimeDisplay = lastResponseTimeRaw !== undefined ? (15 - localTime).toFixed(1) : '-'; // Use localTime for current question's display
+  const lastResponseTimeRaw = currentPlayerResponseTimes[currentPlayerResponseTimes.length - 1]; // This is time TAKEN
+  const lastResponseTimeDisplay = lastResponseTimeRaw !== undefined ? lastResponseTimeRaw.toFixed(1) : '-'; // Display time TAKEN
 
 
   // --- Category Icon Logic (Just before return) ---
@@ -234,7 +245,6 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
   };
   const currentCategoryConfig = (category && categoryConfig[category as keyof typeof categoryConfig]) || categoryConfig.mixed;
   if (!currentCategoryConfig) {
-    // This should ideally never happen with the fallback, but provides a safe crash boundary
     return <div className="text-red-500 p-8 text-center min-h-screen flex items-center justify-center">Error state: Cannot load category configuration.</div>;
   }
   const CategoryIcon = currentCategoryConfig.icon;
@@ -266,11 +276,11 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
         <div className="max-w-7xl mx-auto px-4 h-full flex items-center justify-between relative">
            {/* Left side spacer */}
            <div className="absolute left-4 top-1/2 transform -translate-y-1/2 flex items-center gap-3 w-auto h-full">
-              {/* Solo mode Nav Buttons will push content, this ensures space */}
+             {/* Reserved space */}
            </div>
 
            {/* Centered title */}
-           <div className="flex-grow flex items-center justify-center gap-2 text-center px-16"> {/* Add padding to prevent overlap */}
+           <div className="flex-grow flex items-center justify-center gap-2 text-center px-16">
             <motion.div whileHover={{ scale: 1.1, rotate: 360 }} transition={{ duration: 0.5 }} className={`p-1.5 rounded-lg bg-gray-700/50 ${currentCategoryConfig.color}`} >
               <CategoryIcon className="w-5 h-5" />
             </motion.div>
@@ -288,7 +298,7 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
            {/* Right side - Scores and timer */}
            <div className="absolute right-4 top-1/2 transform -translate-y-1/2 flex items-center gap-2 sm:gap-4">
             {isMultiplayer && (
-              <div className="hidden md:flex gap-2"> {/* Hide scores on small screens */}
+              <div className="hidden md:flex gap-2"> {/* Scores hidden on small screens */}
                 {players.map((player) => (
                   <motion.div
                     key={player.id}
@@ -368,29 +378,28 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
               exit="exit"
             >
               {question.options.map((option, index) => {
-                  let buttonClass = "p-4 rounded-xl text-left w-full transition-all duration-300 text-base md:text-lg font-medium border-2 border-transparent "; // Base classes
+                  let buttonClass = "p-4 rounded-xl text-left w-full transition-all duration-300 text-base md:text-lg font-medium border-2 border-transparent ";
 
                   if (!isAnswerChecked) {
-                      buttonClass += "bg-gray-700/80 hover:bg-gray-600/80 hover:border-blue-500 text-white"; // Default state
+                      buttonClass += "bg-gray-700/80 hover:bg-gray-600/80 hover:border-blue-500 text-white";
                   } else {
-                      // Answer checked state
-                      buttonClass += "transform scale-100 "; // Prevent hover scale when checked
-                      if (option === currentCorrectAnswer) { // Use stored correct answer
-                          buttonClass += "bg-green-600 text-white border-green-400 shadow-lg"; // Correct answer style
+                      buttonClass += "transform scale-100 ";
+                      if (option === currentCorrectAnswer) {
+                          buttonClass += "bg-green-600 text-white border-green-400 shadow-lg";
                       } else if (option === selectedAnswer) {
-                          buttonClass += "bg-red-600 text-white border-red-400 opacity-80"; // Incorrect selected answer style
+                          buttonClass += "bg-red-600 text-white border-red-400 opacity-80";
                       } else {
-                          buttonClass += "bg-gray-700/50 text-gray-400 opacity-60"; // Other options style
+                          buttonClass += "bg-gray-700/50 text-gray-400 opacity-60";
                       }
                   }
 
                   return (
                       <motion.button
-                          key={`${currentQuestion}-${option}`} // More specific key
+                          key={`${currentQuestion}-${option}`}
                           custom={index}
                           variants={optionVariants}
                           onClick={() => handleAnswerSelect(option)}
-                          disabled={!isButtonEnabled || isAnswerChecked} // Disable after answer checked
+                          disabled={!isButtonEnabled || isAnswerChecked}
                           className={buttonClass}
                           whileHover={isButtonEnabled && !isAnswerChecked ? { scale: 1.03, y: -2, transition: { type: "spring", stiffness: 400, damping: 10 } } : {}}
                           whileTap={isButtonEnabled && !isAnswerChecked ? { scale: 0.97, transition: { type: "spring", stiffness: 400, damping: 10 } } : {}}
@@ -409,7 +418,7 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto', transition: { delay: 0.2, duration: 0.3 } }}
                 exit={{ opacity: 0, height: 0, transition: { duration: 0.2 } }}
-                className="mt-6 space-y-2 text-center text-sm overflow-hidden" // Centered feedback
+                className="mt-6 space-y-2 text-center text-sm overflow-hidden"
               >
                 {/* Correct/Incorrect Feedback */}
                 <motion.div
@@ -429,14 +438,15 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
                   </motion.div>
                 )}
 
-                {/* Response Time Feedback - show only if answer was submitted (not timeout) */}
-                {/* Use lastResponseTimeRaw (actual response time) for color logic, use lastResponseTimeDisplay for text */}
+                {/* Response Time Feedback */}
                 {selectedAnswer && lastResponseTimeRaw !== undefined && (
                    <motion.div
+                      // Use raw time (time taken) for color logic
                       className={`${getResponseTimeColor(lastResponseTimeRaw)} flex items-center justify-center gap-1`}
                       initial={{ scale: 0.9 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 200, damping: 10, delay: 0.2 }}
                     >
                       <Clock size={14} />
+                      {/* Display formatted time taken */}
                       <span>Response time: {lastResponseTimeDisplay}s</span>
                   </motion.div>
                 )}
