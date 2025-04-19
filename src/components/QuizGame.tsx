@@ -1,4 +1,4 @@
-// Main quiz game component with integrated header and animated options
+// Main quiz game component with integrated header, animated options, and SEO improvements
 import React, { useState, useEffect, useCallback } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { useOneVsOneStore } from '../store/oneVsOneStore';
@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import type { GameMode } from '../types';
 import { NavigationButton, ConfirmationDialog } from './navigation';
 import { NAVIGATION_LABELS, CONFIRMATION_MESSAGES } from '../constants/navigation';
+import NoIndexTag from './seo/NoIndexTag';
 
 interface QuizGameProps {
   mode: GameMode;
@@ -52,6 +53,49 @@ const optionVariants = {
 };
 
 const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMode, onGameEnd }) => {
+  // SEO metadata management
+  useEffect(() => {
+    // Set the document title based on mode and category
+    if (category) {
+      const categoryName = category.charAt(0).toUpperCase() + category.slice(1);
+      const modeText = mode === 'solo' ? 'Solo Quiz' : '1v1 Battle';
+      document.title = `${categoryName} ${modeText} - SportIQ`;
+      
+      // Update meta description
+      const metaDescription = document.querySelector('meta[name="description"]');
+      if (metaDescription) {
+        metaDescription.setAttribute('content', 
+          `Test your ${category} knowledge in this ${mode === 'solo' ? 'solo practice' : 'multiplayer challenge'} quiz. Answer questions, earn points and compete for the highest score!`);
+      }
+      
+      // Update Open Graph titles and descriptions
+      const ogTitle = document.querySelector('meta[property="og:title"]');
+      const twitterTitle = document.querySelector('meta[property="twitter:title"]');
+      if (ogTitle) ogTitle.setAttribute('content', `${categoryName} ${modeText} - SportIQ`);
+      if (twitterTitle) twitterTitle.setAttribute('content', `${categoryName} ${modeText} - SportIQ`);
+      
+      const ogDesc = document.querySelector('meta[property="og:description"]');
+      const twitterDesc = document.querySelector('meta[property="twitter:description"]');
+      if (ogDesc && twitterDesc) {
+        const desc = `Test your ${category} knowledge in this ${mode === 'solo' ? 'solo practice' : 'multiplayer challenge'} quiz. Answer questions, earn points and compete for the highest score!`;
+        ogDesc.setAttribute('content', desc);
+        twitterDesc.setAttribute('content', desc);
+      }
+    }
+    
+    // Cleanup function to reset metadata when unmounting
+    return () => {
+      // Reset to default title
+      document.title = 'SportIQ - Test Your Sports Knowledge in Quiz Battles';
+      
+      // Reset meta description
+      const metaDescription = document.querySelector('meta[name="description"]');
+      if (metaDescription) {
+        metaDescription.setAttribute('content', 'Challenge your sports knowledge in solo mode or compete against friends in real-time 1v1 battles across football, basketball, tennis, and Olympics categories.');
+      }
+    };
+  }, [category, mode]);
+
   // Log component mounting
   useEffect(() => {
     console.log('QuizGame component mounted for mode:', mode);
@@ -164,29 +208,27 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
   };
 
   // Effect to handle game ending when the last question is answered
-// This is a partial update for the QuizGame.tsx file focusing on the critical parts that need fixing
+  useEffect(() => {
+    // Don't do anything if:
+    // - Not the last question
+    // - Answer not checked yet
+    // - Game ending already triggered
+    // - Game already ended
+    // - No onGameEnd callback
+    if (!isLastQuestion || !isAnswerChecked || endingTriggered || isGameEnded || !onGameEnd) {
+      return;
+    }
 
-useEffect(() => {
-  // Don't do anything if:
-  // - Not the last question
-  // - Answer not checked yet
-  // - Game ending already triggered
-  // - Game already ended
-  // - No onGameEnd callback
-  if (!isLastQuestion || !isAnswerChecked || endingTriggered || isGameEnded || !onGameEnd) {
-    return;
-  }
-
-  console.log('Last question answered, preparing to end game');
-  
-  const timer = setTimeout(() => {
-    console.log('Triggering game end after last question');
-    setEndingTriggered(true);
-    onGameEnd();
-  }, 2500); // Wait for answer feedback to be displayed
-  
-  return () => clearTimeout(timer);
-}, [isLastQuestion, isAnswerChecked, endingTriggered, isGameEnded, onGameEnd]);
+    console.log('Last question answered, preparing to end game');
+    
+    const timer = setTimeout(() => {
+      console.log('Triggering game end after last question');
+      setEndingTriggered(true);
+      onGameEnd();
+    }, 2500); // Wait for answer feedback to be displayed
+    
+    return () => clearTimeout(timer);
+  }, [isLastQuestion, isAnswerChecked, endingTriggered, isGameEnded, onGameEnd]);
 
   useEffect(() => {
     // Only reset state if we actually have a question to display
@@ -361,6 +403,9 @@ useEffect(() => {
 
   return (
     <div className="min-h-screen bg-background p-4">
+      {/* SEO - Add NoIndexTag for game routes */}
+      <NoIndexTag noIndex={true} canonicalUrl="https://sportiq.games/game" />
+      
       {/* Navigation confirmation dialog */}
       <ConfirmationDialog
         isOpen={confirmDialog.isOpen}
