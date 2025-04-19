@@ -1,4 +1,4 @@
-// App.tsx with route-based navigation for the game flow
+// App.tsx with route-based SEO improvements
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -17,6 +17,7 @@ import { useOneVsOneStore } from './store/oneVsOneStore';
 import type { GameMode, Category } from './types';
 import { clearQuestionCache } from './lib/supabase-client';
 import { useAnalyticsEvent } from './hooks/useAnalyticsEvent';
+import RouteMetadata from './components/seo/RouteMetadata';
 
 // Auth Components
 import { AuthProvider } from './contexts/AuthContext';
@@ -29,38 +30,51 @@ import Dashboard from './components/dashboard/Dashboard';
 import GameHistory from './components/dashboard/GameHistory';
 import Settings from './components/dashboard/Settings';
 
-// Enhanced Route Tracker Component for SPA navigation tracking
-const EnhancedRouteTracker = ({ 
-  currentView, 
-  additionalParams = {} 
-}: { 
-  currentView: string; 
-  additionalParams?: Record<string, any>; 
-}) => {
+// Enhanced Route Tracker Component for route-based navigation tracking
+const EnhancedRouteTracker = () => {
   const { trackPageView, trackEvent } = useAnalyticsEvent();
   const location = useLocation();
 
   useEffect(() => {
-    // Track the current URL path
-    trackPageView(location.pathname);
-  }, [location.pathname, trackPageView]);
-
-  useEffect(() => {
-    // Track state-based view changes as virtual pageviews
-    if (currentView) {
-      const viewName = currentView.charAt(0).toUpperCase() + currentView.slice(1);
-      trackPageView(`/view/${currentView}`, `${viewName} View`);
-      
-      // Also track as events for more detailed analytics
-      trackEvent('view_screen', {
-        screen_name: currentView,
-        ...additionalParams
-      });
-      
-      // Log for debugging
-      console.log(`Tracked virtual pageview: ${currentView}`, additionalParams);
+    // Get a descriptive page title from the current path
+    const pageName = getPageNameFromPath(location.pathname);
+    
+    // Track as page view
+    trackPageView(location.pathname, pageName);
+    
+    // Also track as event for more detailed analytics
+    trackEvent('page_view', {
+      page_path: location.pathname,
+      page_title: pageName
+    });
+    
+    // Log for debugging in development
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`📊 Tracked route: ${location.pathname} (${pageName})`);
     }
-  }, [currentView, additionalParams, trackPageView, trackEvent]);
+  }, [location.pathname, trackPageView, trackEvent]);
+
+  // Helper function to get a descriptive page name from path
+  const getPageNameFromPath = (path: string): string => {
+    if (path === '/') return 'Home Page';
+    if (path === '/welcome') return 'Welcome Screen';
+    if (path === '/category') return 'Category Selection';
+    if (path === '/game') return 'Quiz Game';
+    if (path === '/results') return 'Results Screen';
+    if (path === '/invite') return 'Invite Friends';
+    if (path === '/lobby') return 'Game Lobby';
+    if (path === '/about') return 'About Page';
+    if (path === '/faq') return 'FAQ Page';
+    
+    // For dashboard and other paths
+    const pathSegments = path.split('/').filter(Boolean);
+    if (pathSegments.length > 0) {
+      const mainSegment = pathSegments[0];
+      return mainSegment.charAt(0).toUpperCase() + mainSegment.slice(1) + ' Page';
+    }
+    
+    return 'SportIQ Page';
+  };
 
   return null;
 };
@@ -608,21 +622,6 @@ const AppContent = () => {
     }
   };
 
-  // Create analytics params object with current state info
-  const analyticsParams = {
-    mode: currentMode,
-    category: selectedCategory || 'none',
-    players_solo: soloPlayers.length,
-    players_multi: multiPlayers.length,
-    is_host: getCurrentPlayer()?.isHost || false,
-    game_state: {
-      solo_started: isSoloGameStarted,
-      solo_ended: isSoloGameEnded,
-      multi_started: is1v1GameStarted,
-      multi_ended: is1v1GameEnded
-    }
-  };
-
   // Handler for navigation to welcome screen from dashboard
   const handleDashboardToWelcome = () => {
     // This sets a special flag indicating we came from Dashboard 
@@ -645,11 +644,11 @@ const AppContent = () => {
 
   return (
     <>
-      {/* Enhanced Route Tracker for SPA navigation */}
-      <EnhancedRouteTracker 
-        currentView={gameState}
-        additionalParams={analyticsParams}
-      />
+      {/* SEO metadata manager */}
+      <RouteMetadata />
+      
+      {/* Enhanced Route Tracker for analytics */}
+      <EnhancedRouteTracker />
       
       <Routes>
         {/* Authentication Routes */}
