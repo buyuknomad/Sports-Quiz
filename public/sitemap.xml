@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- Main pages -->
   <url>
     <loc>https://sportiq.games/</loc>
     <lastmod>2025-04-08</lastmod>
@@ -13,23 +14,37 @@
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://sportiq.games/categories</loc>
+    <loc>https://sportiq.games/category</loc>
     <lastmod>2025-04-08</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
-  <!-- Add FAQ page if you have one -->
+  
+  <!-- Info pages -->
   <url>
     <loc>https://sportiq.games/faq</loc>
     <lastmod>2025-04-08</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
-  <!-- Add About page if you have one -->
   <url>
     <loc>https://sportiq.games/about</loc>
     <lastmod>2025-04-08</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
+  </url>
+  
+  <!-- Auth pages -->
+  <url>
+    <loc>https://sportiq.games/auth/signin</loc>
+    <lastmod>2025-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://sportiq.games/auth/signup</loc>
+    <lastmod>2025-04-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
   </url>
 </urlset>
