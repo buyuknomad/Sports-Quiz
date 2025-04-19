@@ -130,35 +130,51 @@ export const CategorySelect: React.FC<CategorySelectProps> = ({
     { id: 'mixed', name: 'Mixed Sports', emoji: '🎯', icon: Dumbbell, color: 'from-purple-600 to-purple-400' },
   ] as const;
 
-  const handleCategorySelect = (category: Category) => {
+  const handleCategorySelect = async (category: Category) => {
     // Prevent multiple selections
     if (isSelecting) {
       console.log('Selection already in progress, ignoring');
       return;
     }
     
+    // First, immediately clear metadata state to prevent updates during transition
+    setHoveredCategory(null);
+    
+    // Set debounce flag to block multiple selections
     setIsSelecting(true);
     console.log(`Selected category: ${category} for mode: ${mode}`);
     
+    // Non-host handling (keep this part unchanged)
     if (mode !== 'solo' && hasJoinedGame && !isHost) {
       console.log('Non-host attempted to select category, redirecting');
       onSelect(category);
+      setTimeout(() => { setIsSelecting(false); }, 1000);
+      return;
+    }
+
+    try {
+      // Add a small delay before navigation to ensure all state updates complete
+      // This can prevent race conditions during component transitions
+      await new Promise(resolve => setTimeout(resolve, 50));
       
+      // Immediately disable hover effects by setting a flag in localStorage
+      localStorage.setItem('navigationInProgress', 'true');
+      
+      // Call onSelect with the category
+      onSelect(category);
+      
+      // Reset navigation flag after a safe delay
+      setTimeout(() => {
+        localStorage.removeItem('navigationInProgress');
+      }, 1000);
+    } catch (error) {
+      console.error('Error during category selection:', error);
+    } finally {
       // Reset selection state after a delay
       setTimeout(() => {
         setIsSelecting(false);
       }, 1000);
-      
-      return;
     }
-    
-    // Call only onSelect
-    onSelect(category);
-    
-    // Reset selection state after a delay
-    setTimeout(() => {
-      setIsSelecting(false);
-    }, 1000);
   };
 
   return (
@@ -204,8 +220,15 @@ export const CategorySelect: React.FC<CategorySelectProps> = ({
                 whileHover={{ scale: 1.02, y: -5 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => handleCategorySelect(id as Category)}
-                onMouseEnter={() => setHoveredCategory(id as Category)}
-                onMouseLeave={() => setHoveredCategory(null)}
+                onMouseEnter={() => {
+                  // Skip hover effects during navigation
+                  if (isSelecting || localStorage.getItem('navigationInProgress') === 'true') return;
+                  setHoveredCategory(id as Category);
+                }}
+                onMouseLeave={() => {
+                  if (isSelecting || localStorage.getItem('navigationInProgress') === 'true') return;
+                  setHoveredCategory(null);
+                }}
                 disabled={isSelecting}
                 className={`group relative bg-gray-800 rounded-2xl p-6 sm:p-8 overflow-hidden ${isSelecting ? 'opacity-70 cursor-not-allowed' : ''}`}
               >
