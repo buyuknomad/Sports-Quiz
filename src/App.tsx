@@ -1,4 +1,4 @@
-// App.tsx with route-based SEO improvements
+// App.tsx with route-based SEO improvements and dashboard navigation fix
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -550,10 +550,15 @@ const AppContent = () => {
     }
   }, [is1v1GameStarted, is1v1GameEnded, currentMode, location.pathname, trackEvent, selectedCategory, multiPlayers.length, navigate]);
 
-  // Track game completion and transition to results
+  // Track game completion and transition to results - FIXED TO ALLOW DASHBOARD NAVIGATION
   useEffect(() => {
     // Only navigate if we're not already on the results page
-    if (location.pathname !== '/results') {
+    // AND not going to a dashboard, auth, settings, or history path
+    if (location.pathname !== '/results' && 
+        !location.pathname.includes('/dashboard') && 
+        !location.pathname.includes('/auth') &&
+        !location.pathname.includes('/settings') &&
+        !location.pathname.includes('/history')) {
       if (currentMode === 'solo' && isSoloGameEnded) {
         console.log('Solo game ended, navigating to results page');
         navigate('/results');
@@ -604,9 +609,14 @@ const AppContent = () => {
     };
   }, [socket, navigate]);
 
-  // Force transition to results if needed
+  // Force transition to results if needed - FIXED TO ALLOW DASHBOARD NAVIGATION
   useEffect(() => {
-    if (currentMode === '1v1' && is1v1GameEnded && location.pathname !== '/results') {
+    if (currentMode === '1v1' && is1v1GameEnded && 
+        location.pathname !== '/results' &&
+        !location.pathname.includes('/dashboard') && 
+        !location.pathname.includes('/auth') &&
+        !location.pathname.includes('/settings') &&
+        !location.pathname.includes('/history')) {
       console.log('Game ended but not on results page, forcing transition');
       
       const timer = setTimeout(() => {
