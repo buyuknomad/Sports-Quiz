@@ -1,5 +1,5 @@
 // src/hooks/useCategoryMetadata.ts
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { Category } from '../types';
 
 interface CategoryMetadata {
@@ -47,38 +47,56 @@ const categoryMetadata: Record<Category, CategoryMetadata> = {
  * Hook to update document metadata based on the selected sports category
  */
 export const useCategoryMetadata = (category: Category | null) => {
+  // Add a ref to track if component is mounted
+  const isMounted = useRef(true);
+  
+  // Set up the ref to track mounting state
   useEffect(() => {
-    // Only update metadata if a category is selected
-    if (!category) return;
+    // This will run when component mounts
+    return () => {
+      // This will run when component unmounts
+      isMounted.current = false;
+    };
+  }, []);
+  
+  useEffect(() => {
+    // Only update metadata if a category is selected and component is mounted
+    if (!category || !isMounted.current) return;
     
-    const metadata = categoryMetadata[category];
-    
-    // Update document title
-    document.title = `${metadata.title} - SportIQ`;
-    
-    // Update meta description
-    const metaDescription = document.querySelector('meta[name="description"]');
-    if (metaDescription) {
-      metaDescription.setAttribute('content', metadata.description);
+    try {
+      const metadata = categoryMetadata[category];
+      if (!metadata) return;
+      
+      // Update document title
+      document.title = `${metadata.title} - SportIQ`;
+      
+      // Update meta description with safety check
+      if (isMounted.current) {
+        const metaDescription = document.querySelector('meta[name="description"]');
+        if (metaDescription) {
+          metaDescription.setAttribute('content', metadata.description);
+        }
+        
+        // Update keywords with safety check
+        const metaKeywords = document.querySelector('meta[name="keywords"]');
+        if (metaKeywords) {
+          metaKeywords.setAttribute('content', metadata.keywords);
+        }
+        
+        // Update Open Graph and Twitter meta tags
+        const ogTitle = document.querySelector('meta[property="og:title"]');
+        const twitterTitle = document.querySelector('meta[property="twitter:title"]');
+        const ogDescription = document.querySelector('meta[property="og:description"]');
+        const twitterDescription = document.querySelector('meta[property="twitter:description"]');
+        
+        if (ogTitle) ogTitle.setAttribute('content', metadata.title);
+        if (twitterTitle) twitterTitle.setAttribute('content', metadata.title);
+        if (ogDescription) ogDescription.setAttribute('content', metadata.description);
+        if (twitterDescription) twitterDescription.setAttribute('content', metadata.description);
+      }
+    } catch (error) {
+      console.error('Error updating metadata:', error);
     }
-    
-    // Update keywords
-    const metaKeywords = document.querySelector('meta[name="keywords"]');
-    if (metaKeywords) {
-      metaKeywords.setAttribute('content', metadata.keywords);
-    }
-    
-    // Update Open Graph and Twitter meta tags
-    const ogTitle = document.querySelector('meta[property="og:title"]');
-    const twitterTitle = document.querySelector('meta[property="twitter:title"]');
-    const ogDescription = document.querySelector('meta[property="og:description"]');
-    const twitterDescription = document.querySelector('meta[property="twitter:description"]');
-    
-    if (ogTitle) ogTitle.setAttribute('content', metadata.title);
-    if (twitterTitle) twitterTitle.setAttribute('content', metadata.title);
-    if (ogDescription) ogDescription.setAttribute('content', metadata.description);
-    if (twitterDescription) twitterDescription.setAttribute('content', metadata.description);
-    
   }, [category]);
   
   return categoryMetadata[category as Category] || null;
