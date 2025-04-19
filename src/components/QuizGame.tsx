@@ -94,7 +94,7 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
         metaDescription.setAttribute('content', 'Challenge your sports knowledge in solo mode or compete against friends in real-time 1v1 battles across football, basketball, tennis, and Olympics categories.');
       }
     };
-  }, [category, mode]);
+  }, [mode]); //}, [category, mode]);
 
   // Log component mounting
   useEffect(() => {
