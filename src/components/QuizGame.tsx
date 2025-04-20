@@ -1,4 +1,4 @@
-// src/components/QuizGame.tsx
+// Fixed QuizGame.tsx with improved last question handling
 import React, { useState, useEffect, useCallback } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { useOneVsOneStore } from '../store/oneVsOneStore';
@@ -8,7 +8,7 @@ import {
   Medal, Dumbbell, ArrowLeft, Home, LogOut
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { GameMode, Category, Question } from '../types'; // Ensure Question is imported
+import type { GameMode, Category, Question } from '../types';
 import { NavigationButton, ConfirmationDialog } from './navigation';
 import { NAVIGATION_LABELS, CONFIRMATION_MESSAGES } from '../constants/navigation';
 import NoIndexTag from './seo/NoIndexTag';
@@ -69,6 +69,9 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
   const [endingTriggered, setEndingTriggered] = useState(false);
   const [currentCorrectAnswer, setCurrentCorrectAnswer] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean; type: 'category' | 'mode' | 'leave' | null; }>({ isOpen: false, type: null });
+  
+  // Flag to track if we're waiting for the server to end the game
+  const [waitingForGameEnd, setWaitingForGameEnd] = useState(false);
 
   // --- Derived State ---
   const currentPlayer = getCurrentPlayer();
@@ -95,8 +98,14 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
     const currentScore = currentPlayer.score || 0;
     const newTotalScore = currentScore + points;
     submitAnswer(answer, localTime, points, newTotalScore);
-    if (currentQuestion === questions.length - 1) console.log('This was the last question!');
-  }, [currentPlayer, localTime, question, submitAnswer, isButtonEnabled, currentQuestion, questions.length, getBonusTier]);
+    
+    // Log if it's the last question, but don't take any action here
+    if (currentQuestion === questions.length - 1 && isMultiplayer) {
+      console.log('This was the last question! Waiting for server to end the game.');
+      // Set waiting flag instead of triggering game end
+      setWaitingForGameEnd(true);
+    }
+  }, [currentPlayer, localTime, question, submitAnswer, isButtonEnabled, currentQuestion, questions.length, getBonusTier, isMultiplayer]);
 
   const handleTimeUp = useCallback(() => {
     if (isButtonEnabled && !isAnswerChecked && currentPlayer && question) {
@@ -104,8 +113,14 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
       setIsButtonEnabled(false); setIsAnswerChecked(true); setIsCorrect(false); setEarnedPoints(0); setCurrentCorrectAnswer(question.correctAnswer);
       const currentScore = currentPlayer.score || 0;
       submitAnswer('', 0, 0, currentScore);
+      
+      // Set waiting flag if it's the last question
+      if (currentQuestion === questions.length - 1 && isMultiplayer) {
+        console.log('Last question time up! Waiting for server to end the game.');
+        setWaitingForGameEnd(true);
+      }
     }
-  }, [isButtonEnabled, isAnswerChecked, submitAnswer, currentPlayer, question]);
+  }, [isButtonEnabled, isAnswerChecked, submitAnswer, currentPlayer, question, currentQuestion, questions.length, isMultiplayer]);
 
 
   // --- SEO Metadata Effects (Split) ---
@@ -137,7 +152,7 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
   // --- Other Effects ---
   useEffect(() => { console.log('QuizGame component mounted for mode:', mode); return () => { console.log('QuizGame component unmounting'); }; }, [mode]);
 
-  // Monitor question changes <<< ADDED BACK THE QUESTION LOGGING EFFECT >>>
+  // Monitor question changes
   useEffect(() => {
     if (question) {
       console.log(`Current question (${currentQuestion}):`, question.question.substring(0, 30) + '...');
@@ -146,18 +161,27 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
     }
   }, [question, currentQuestion]);
 
+  // FIXED: Solo mode game ending - only trigger for solo mode, never for multiplayer
   useEffect(() => {
-    if (!isLastQuestion || !isAnswerChecked || endingTriggered || isGameEnded || !onGameEnd) return;
-    const timer = setTimeout(() => { setEndingTriggered(true); if (onGameEnd) onGameEnd(); else console.warn("onGameEnd prop is missing"); }, 2500);
-    return () => clearTimeout(timer);
-  }, [isLastQuestion, isAnswerChecked, endingTriggered, isGameEnded, onGameEnd]);
+    // Only for solo mode, never trigger manual game end for multiplayer
+    if (mode === 'solo' && isLastQuestion && isAnswerChecked && !endingTriggered && !isGameEnded && onGameEnd) {
+      const timer = setTimeout(() => { 
+        setEndingTriggered(true);
+        onGameEnd();
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [isLastQuestion, isAnswerChecked, endingTriggered, isGameEnded, onGameEnd, mode]);
+
   useEffect(() => {
     if (question) {
-      // Log removed from here, now in separate effect above
       setIsButtonEnabled(true); setSelectedAnswer(null); setIsAnswerChecked(false); setIsCorrect(false);
       setLocalTime(15); setEarnedPoints(0); setCurrentBonusTier(null); setCurrentCorrectAnswer(null);
+      // Reset waiting flag when new question is loaded
+      setWaitingForGameEnd(false);
     }
-  }, [currentQuestion, question]); // Keep dependencies
+  }, [currentQuestion, question]);
+
   useEffect(() => {
     let timer: NodeJS.Timeout | undefined = undefined;
     if (!isAnswerChecked && !isGameEnded && isButtonEnabled && question) {
@@ -191,6 +215,7 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
     if (time > 5) return 'text-yellow-400';
     return 'text-red-400';
   };
+
   const getBonusTierColor = (tier: BonusTier | null): string => {
     if (!tier) return 'text-gray-400';
     if (tier.points >= 5) return 'text-purple-400';
@@ -200,6 +225,7 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
     if (tier.points >= 1) return 'text-orange-400';
     return 'text-gray-400';
   };
+
   const getResponseTimeColor = (responseTime: number): string => { // responseTime is time TAKEN (0-15)
     if (responseTime < 5) return 'text-green-400';   // < 5s
     if (responseTime < 10) return 'text-yellow-400'; // 5s to 10s
@@ -348,6 +374,18 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
 
       {/* Main Game Area */}
       <div className="container mx-auto max-w-2xl pt-20 sm:pt-24 pb-24 flex flex-col items-center">
+        {/* Waiting indicator for last question */}
+        {isMultiplayer && isLastQuestion && isAnswerChecked && waitingForGameEnd && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="mb-4 bg-blue-500/20 text-blue-300 px-4 py-2 rounded-lg text-center"
+          >
+            <p>Waiting for other player to answer the final question...</p>
+          </motion.div>
+        )}
+
         <motion.div
           className="card w-full p-6 md:p-8 bg-gray-800/70 backdrop-blur-md rounded-2xl shadow-lg"
           initial={{ y: 20, opacity: 0 }}
