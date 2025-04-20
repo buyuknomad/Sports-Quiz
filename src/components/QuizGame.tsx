@@ -1,4 +1,4 @@
-// Fixed QuizGame.tsx with improved last question handling
+// Updated QuizGame.tsx with improved last question handling and gameOver listener
 import React, { useState, useEffect, useCallback } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { useOneVsOneStore } from '../store/oneVsOneStore';
@@ -72,6 +72,8 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
   
   // Flag to track if we're waiting for the server to end the game
   const [waitingForGameEnd, setWaitingForGameEnd] = useState(false);
+  // New state for transition message during game ending
+  const [transitionMessage, setTransitionMessage] = useState<string | null>(null);
 
   // --- Derived State ---
   const currentPlayer = getCurrentPlayer();
@@ -79,6 +81,27 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
   const question: Question | undefined = questions[currentQuestion]; // Explicitly type question
   const isMultiplayer = mode !== 'solo';
   const isLastQuestion = currentQuestion === questions.length - 1;
+
+  // --- Add Game Over Socket Listener ---
+  useEffect(() => {
+    if (!socket || !isMultiplayer) return;
+    
+    const handleGameOver = (data: any) => {
+      console.log('Game over event received in QuizGame component:', data);
+      // Clear waiting state
+      setWaitingForGameEnd(false);
+      // Set transition message
+      setTransitionMessage("Game complete! Loading results...");
+    };
+    
+    // Add listener for gameOver event
+    socket.on('gameOver', handleGameOver);
+    
+    // Clean up listener when component unmounts
+    return () => {
+      socket.off('gameOver', handleGameOver);
+    };
+  }, [socket, isMultiplayer]);
 
   // --- Helper Callbacks ---
   const getBonusTier = useCallback((time: number): BonusTier => {
@@ -99,11 +122,11 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
     const newTotalScore = currentScore + points;
     submitAnswer(answer, localTime, points, newTotalScore);
     
-    // Log if it's the last question, but don't take any action here
+    // Set waiting message for the last question in multiplayer mode
     if (currentQuestion === questions.length - 1 && isMultiplayer) {
       console.log('This was the last question! Waiting for server to end the game.');
-      // Set waiting flag instead of triggering game end
       setWaitingForGameEnd(true);
+      setTransitionMessage("Waiting for other player to answer the final question...");
     }
   }, [currentPlayer, localTime, question, submitAnswer, isButtonEnabled, currentQuestion, questions.length, getBonusTier, isMultiplayer]);
 
@@ -114,10 +137,11 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
       const currentScore = currentPlayer.score || 0;
       submitAnswer('', 0, 0, currentScore);
       
-      // Set waiting flag if it's the last question
+      // Set waiting message for the last question in multiplayer mode
       if (currentQuestion === questions.length - 1 && isMultiplayer) {
         console.log('Last question time up! Waiting for server to end the game.');
         setWaitingForGameEnd(true);
+        setTransitionMessage("Waiting for other player to answer the final question...");
       }
     }
   }, [isButtonEnabled, isAnswerChecked, submitAnswer, currentPlayer, question, currentQuestion, questions.length, isMultiplayer]);
@@ -177,8 +201,9 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
     if (question) {
       setIsButtonEnabled(true); setSelectedAnswer(null); setIsAnswerChecked(false); setIsCorrect(false);
       setLocalTime(15); setEarnedPoints(0); setCurrentBonusTier(null); setCurrentCorrectAnswer(null);
-      // Reset waiting flag when new question is loaded
+      // Reset waiting flag and transition message when new question is loaded
       setWaitingForGameEnd(false);
+      setTransitionMessage(null);
     }
   }, [currentQuestion, question]);
 
@@ -374,15 +399,15 @@ const QuizGame: React.FC<QuizGameProps> = ({ mode, onBackToCategory, onBackToMod
 
       {/* Main Game Area */}
       <div className="container mx-auto max-w-2xl pt-20 sm:pt-24 pb-24 flex flex-col items-center">
-        {/* Waiting indicator for last question */}
-        {isMultiplayer && isLastQuestion && isAnswerChecked && waitingForGameEnd && (
+        {/* Waiting or Transition Message */}
+        {isMultiplayer && isLastQuestion && isAnswerChecked && transitionMessage && (
           <motion.div 
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
             className="mb-4 bg-blue-500/20 text-blue-300 px-4 py-2 rounded-lg text-center"
           >
-            <p>Waiting for other player to answer the final question...</p>
+            <p>{transitionMessage}</p>
           </motion.div>
         )}
 
