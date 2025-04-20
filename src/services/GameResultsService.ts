@@ -9,8 +9,9 @@ interface SaveGameParams {
   correctAnswers: number;
   totalQuestions: number;
   completionTime?: number;
-  opponentId?: string;
+  opponentId?: string;          // Now optional
   opponentScore?: number;
+  opponentName?: string;        // Added field for opponent name
   result?: 'win' | 'loss' | 'draw';
   questionDetails: {
     questionId: string;
@@ -23,12 +24,7 @@ interface SaveGameParams {
 // Service to save game results to the database
 export const saveGameResults = async (params: SaveGameParams) => {
   try {
-    console.log('Saving game results with params:', JSON.stringify({
-      ...params,
-      userId: params.userId.substring(0, 8) + '...' // Log truncated user ID for privacy
-    }));
-
-    // Prepare the data - make sure field names match EXACTLY what the database expects
+    // First, prepare the game session data
     const gameSessionData = {
       user_id: params.userId,
       mode: params.mode,
@@ -36,15 +32,19 @@ export const saveGameResults = async (params: SaveGameParams) => {
       score: params.score,
       correct_answers: params.correctAnswers,
       total_questions: params.totalQuestions,
-      completion_time: params.completionTime || null,
-      opponent_id: params.opponentId || null,
+      completion_time: params.completionTime,
+      // Only include opponent_id if it's a valid UUID
+      opponent_id: params.opponentId && 
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(params.opponentId) 
+        ? params.opponentId 
+        : null,
       opponent_score: params.opponentScore || null,
+      // Store opponent name in metadata if available
+      metadata: params.opponentName ? { opponent_name: params.opponentName } : null,
       result: params.result || null
     };
-
-    console.log('Formatted game session data:', gameSessionData);
     
-    // First, insert the game session
+    // Insert the game session
     const { data: gameSession, error: gameError } = await supabase
       .from('game_sessions')
       .insert(gameSessionData)
@@ -56,7 +56,7 @@ export const saveGameResults = async (params: SaveGameParams) => {
       throw gameError;
     }
     
-    // Then, insert the question details if available
+    // Then, insert the question details
     if (params.questionDetails.length > 0) {
       const userAnswers = params.questionDetails.map(detail => ({
         game_session_id: gameSession.id,
@@ -77,10 +77,10 @@ export const saveGameResults = async (params: SaveGameParams) => {
       }
     }
     
-    return { gameSession, error: null };
+    return { gameSession };
   } catch (error) {
     console.error('Error saving game results:', error);
-    return { gameSession: null, error };
+    return { error };
   }
 };
 
@@ -98,10 +98,10 @@ export const getGameHistory = async (userId: string, limit = 10) => {
       throw error;
     }
     
-    return { data, error: null };
+    return { data };
   } catch (error) {
     console.error('Error fetching game history:', error);
-    return { data: null, error };
+    return { error };
   }
 };
 
@@ -129,11 +129,10 @@ export const getGameDetails = async (gameId: string) => {
     
     return { 
       game: gameData, 
-      answers: answersData,
-      error: null
+      answers: answersData 
     };
   } catch (error) {
     console.error('Error fetching game details:', error);
-    return { game: null, answers: null, error };
+    return { error };
   }
 };
