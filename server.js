@@ -1,4 +1,4 @@
-// Enhanced production server with improved CORS and Socket.IO configuration
+// Fixed server.js with improved game ending logic
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -338,7 +338,8 @@ io.on('connection', (socket) => {
           hasFinished: false,
           isHost: true,
           rematchReady: false,
-          responseTimes: []
+          responseTimes: [],
+          correctAnswers: 0 // Initialize correctAnswers to 0
         }],
         currentQuestion: 0,
         questions: selectedQuestions,
@@ -349,7 +350,11 @@ io.on('connection', (socket) => {
         answeredPlayers: new Set(),
         finishedPlayers: new Set(),
         scores: new Map([[socket.id, 0]]),
-        questionStartTime: Date.now()
+        questionStartTime: Date.now(),
+        // Add a timer to track timeouts
+        lastAnswerTime: Date.now(),
+        // Flag to track if game ending is in progress
+        endingInProgress: false
       };
 
       activeGames.set(gameId, game);
@@ -378,7 +383,8 @@ io.on('connection', (socket) => {
       hasFinished: false,
       isHost: false,
       rematchReady: false,
-      responseTimes: []
+      responseTimes: [],
+      correctAnswers: 0 // Initialize correctAnswers to 0
     };
 
     game.players.push(newPlayer);
@@ -476,6 +482,7 @@ io.on('connection', (socket) => {
         game.startCountdown = null;
         game.questions = newQuestions;
         game.questionStartTime = Date.now();
+        game.endingInProgress = false;
         
         // Reset player stats but keep player data
         game.players.forEach(p => {
@@ -484,6 +491,7 @@ io.on('connection', (socket) => {
           p.hasFinished = false;
           p.rematchReady = false;
           p.responseTimes = [];
+          p.correctAnswers = 0;
           game.scores.set(p.id, 0);
         });
 
@@ -508,6 +516,15 @@ io.on('connection', (socket) => {
       socket.emit('error', { message: 'Game not found' });
       return;
     }
+    
+    // Check if game is already ending
+    if (game.endingInProgress) {
+      console.log(`Game ${gameId} already ending, ignoring duplicate request`);
+      return;
+    }
+    
+    // Mark the game as ending in progress to prevent race conditions
+    game.endingInProgress = true;
     
     // Mark the game as ended
     game.isGameEnded = true;
@@ -567,6 +584,7 @@ io.on('connection', (socket) => {
           game.isGameStarted = true;
           game.startCountdown = null;
           game.questionStartTime = Date.now();
+          game.lastAnswerTime = Date.now(); // Reset answer time tracker
           
           io.to(gameId).emit('gameStarted', serializeGameState(game));
           
@@ -582,6 +600,9 @@ io.on('connection', (socket) => {
 
     const player = game.players.find(p => p.id === playerId);
     if (!player) return;
+
+    // Update last answer timestamp
+    game.lastAnswerTime = Date.now();
 
     if (!player.responseTimes) {
       player.responseTimes = [];
@@ -624,7 +645,9 @@ io.on('connection', (socket) => {
     });
     
     console.log(`Player ${playerId} submitted answer in game: ${gameId}`);
+    console.log(`Answered players: ${game.answeredPlayers.size}/${game.players.length}`);
 
+    // *** FIXED: Check if all players have answered before ending the game ***
     if (game.answeredPlayers.size === game.players.length) {
       console.log(`All players answered in game: ${gameId}`);
       game.answeredPlayers.clear();
@@ -632,8 +655,12 @@ io.on('connection', (socket) => {
       if (game.currentQuestion < 9) {
         // Not the last question, proceed to next question after a delay
         setTimeout(() => {
+          // Double-check game still exists and isn't ended
+          if (!activeGames.has(gameId) || game.isGameEnded) return;
+          
           game.currentQuestion++;
           game.questionStartTime = Date.now();
+          game.lastAnswerTime = Date.now(); // Reset answer time tracker
           
           // Update scores for all players
           game.players.forEach(player => {
@@ -655,16 +682,48 @@ io.on('connection', (socket) => {
         }, 1000);
       } else {
         // This was the last question, trigger game over after a delay
+        // *** IMPROVED: Check if game is already ending ***
+        if (!game.endingInProgress) {
+          game.endingInProgress = true;
+          
+          setTimeout(() => {
+            // Double-check game still exists
+            if (!activeGames.has(gameId)) return;
+            
+            game.isGameEnded = true;
+            
+            // Make sure we have the latest state for all players
+            const serializedGameState = serializeGameState(game);
+            
+            // Emit gameOver event to all clients
+            io.to(gameId).emit('gameOver', serializedGameState);
+            console.log(`Game ${gameId} ended - all questions answered`);
+          }, 2000);
+        } else {
+          console.log(`Game ${gameId} already in ending process, skipping duplicate end`);
+        }
+      }
+    } else {
+      // Set a timeout for answer submission on last question
+      if (game.currentQuestion === 9) {
+        // If we're on the last question, set a timeout to end the game
+        // if the other player doesn't answer within 20 seconds
         setTimeout(() => {
-          game.isGameEnded = true;
+          // Check if the game still exists and hasn't ended yet
+          if (!activeGames.has(gameId) || game.isGameEnded || game.endingInProgress) return;
           
-          // Make sure we have the latest state for all players
-          const serializedGameState = serializeGameState(game);
-          
-          // Emit gameOver event to all clients
-          io.to(gameId).emit('gameOver', serializedGameState);
-          console.log(`Game ${gameId} ended - all questions answered`);
-        }, 2000);
+          // Check if all players have answered by now
+          if (game.answeredPlayers.size < game.players.length) {
+            // It's been too long, end the game anyway
+            console.log(`Answer timeout reached for game ${gameId} on last question. Ending game.`);
+            
+            game.endingInProgress = true;
+            game.isGameEnded = true;
+            
+            // Emit gameOver event
+            io.to(gameId).emit('gameOver', serializeGameState(game));
+          }
+        }, 20000); // 20 second timeout
       }
     }
   });
