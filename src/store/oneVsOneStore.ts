@@ -1,3 +1,4 @@
+// Fixed oneVsOneStore.ts with improved game ending logic
 import { create } from 'zustand';
 import { io, Socket } from 'socket.io-client';
 import { nanoid } from 'nanoid';
@@ -97,6 +98,8 @@ interface OneVsOneState {
   hasJoinedGame: boolean;
   completionTime?: number;
   isGameCreationInProgress: boolean;
+  // Add a flag to track if game saving is in progress
+  isSavingGameResults: boolean;
 }
 
 interface OneVsOneStore extends OneVsOneState {
@@ -108,7 +111,7 @@ interface OneVsOneStore extends OneVsOneState {
   getCurrentPlayer: () => Player | undefined;
   addChatMessage: (playerId: string, message: string) => void;
   getPlayerResponseTimes: (playerId: string) => number[];
-  resetGame: (disconnect?: boolean) => void;  // Updated with optional disconnect parameter
+  resetGame: (disconnect?: boolean) => void;
   setCategory: (category: Category) => void;
   endGame: () => Promise<void>;
   requestRematch: (playerId: string) => void;
@@ -136,7 +139,8 @@ const initialState: OneVsOneState = {
   socket,
   isConnecting: false,
   hasJoinedGame: false,
-  isGameCreationInProgress: false
+  isGameCreationInProgress: false,
+  isSavingGameResults: false
 };
 
 export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
@@ -287,9 +291,19 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
     }));
   });
 
-  // IMPROVED gameOver handler
+  // IMPROVED gameOver handler to fix Database Issue
   socket.on('gameOver', async (data) => {
     console.log('Game over event received:', data);
+    
+    // Check if we're already in the process of saving game results
+    if (get().isSavingGameResults) {
+      console.log('Already saving game results, skipping duplicate processing');
+      return;
+    }
+    
+    // Set flag to prevent multiple save operations
+    set(state => ({ ...state, isSavingGameResults: true }));
+    
     const endTime = Date.now();
     const startTime = get().startTime;
     const completionTime = (endTime - startTime) / 1000;
@@ -315,6 +329,8 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
     // Validate player data
     if (!currentPlayer) {
       console.error('Cannot save game: Current player not found in gameOver handler');
+      // Reset saving flag
+      set(state => ({ ...state, isSavingGameResults: false }));
       window.dispatchEvent(new CustomEvent('sportiq:gameEnded', { detail: data }));
       return;
     }
@@ -333,6 +349,8 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
       const user = userData.user;
       if (!user) {
         console.log('User not logged in, skipping result saving');
+        // Reset saving flag
+        set(state => ({ ...state, isSavingGameResults: false }));
         window.dispatchEvent(new CustomEvent('sportiq:gameEnded', { detail: data }));
         return;
       }
@@ -363,7 +381,7 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
         result
       });
       
-      // Save the game results but don't save socket IDs
+      // Save the game results but don't save socket IDs or use metadata
       const { gameSession, error } = await saveGameResults({
         userId: user.id,
         mode: '1v1',
@@ -374,7 +392,7 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
         completionTime,
         // Don't pass opponentId: opponentPlayer?.id,
         opponentScore: opponentPlayer?.score,
-        opponentName: opponentPlayer?.username, // Add if the schema supports it
+        // Removed: opponentName: opponentPlayer?.username
         result,
         questionDetails: []
       });
@@ -394,6 +412,9 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
         console.error('Error stack:', error.stack);
       }
     } finally {
+      // Reset saving flag
+      set(state => ({ ...state, isSavingGameResults: false }));
+      
       // Always dispatch the event to navigate to results, even if saving failed
       window.dispatchEvent(new CustomEvent('sportiq:gameEnded', { detail: data }));
     }
@@ -487,7 +508,8 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
       playerResponseTimes: new Map(),
       finishedPlayers: new Set(),
       answeredPlayers: new Set(),
-      startCountdown: null
+      startCountdown: null,
+      isSavingGameResults: false
     }));
     
     // Trigger custom event to navigate back to lobby
@@ -499,7 +521,8 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
     set(state => ({ 
       ...state, 
       isConnecting: false,
-      isGameCreationInProgress: false 
+      isGameCreationInProgress: false,
+      isSavingGameResults: false
     }));
   });
 
@@ -508,7 +531,8 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
     set(state => ({ 
       ...state, 
       isConnecting: false,
-      isGameCreationInProgress: false
+      isGameCreationInProgress: false,
+      isSavingGameResults: false
     }));
   });
 
@@ -898,75 +922,35 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
       set({
         ...initialState,
         socket, // Keep the socket reference
-        currentPlayerId: socket.id || '' // Keep the current player ID if available
+        currentPlayerId: socket.id || '', // Keep the current player ID if available
+        isSavingGameResults: false
       });
     },
     
-    // UPDATED endGame function
+    // UPDATED endGame function to fix database errors and race conditions
     endGame: async () => {
       const state = get();
-      const { gameId, socket, category, questions, startTime } = state;
-      if (!gameId || !socket.connected) return Promise.resolve();
+      const { gameId, socket, isGameEnded, isSavingGameResults } = state;
       
-      console.log('Manually ending game:', gameId);
-      
-      // Calculate completion time
-      const endTime = Date.now();
-      const completionTime = (endTime - startTime) / 1000;
-      
-      // Get current player details
-      const currentPlayer = state.getCurrentPlayer();
-      if (!currentPlayer) {
-        console.error('Current player not found');
+      // Check if game is already ended or already saving
+      if (isGameEnded || isSavingGameResults) {
+        console.log('Game already ended or saving in progress, ignoring duplicate endGame call');
         return Promise.resolve();
       }
       
-      // Get opponent player
-      const opponentPlayer = state.players.find(p => p.id !== currentPlayer.id);
-      
-      // *** FIX #4: Save 1v1 game results to the database ***
-      try {
-        const { data } = await supabase.auth.getUser();
-        const user = data.user;
-        
-        if (user) {
-          console.log('Saving 1v1 game results to database');
-          
-          // Calculate win/loss/draw
-          let result: 'win' | 'loss' | 'draw' | undefined;
-          if (opponentPlayer) {
-            if (currentPlayer.score > opponentPlayer.score) {
-              result = 'win';
-            } else if (currentPlayer.score < opponentPlayer.score) {
-              result = 'loss';
-            } else {
-              result = 'draw';
-            }
-          }
-          
-          // Save the current player's results but don't save socket IDs
-          await saveGameResults({
-            userId: user.id,
-            mode: '1v1',
-            category,
-            score: currentPlayer.score,
-            correctAnswers: currentPlayer.correctAnswers || 0,
-            totalQuestions: questions.length,
-            completionTime,
-            // Don't pass opponentId: opponentPlayer?.id,
-            opponentScore: opponentPlayer?.score,
-            opponentName: opponentPlayer?.username, // Add if schema supports it
-            result,
-            questionDetails: [] // We don't track individual question details for 1v1 games
-          });
-          
-          console.log('1v1 game results saved successfully');
-        } else {
-          console.log('User not logged in, skipping result saving');
-        }
-      } catch (error) {
-        console.error('Failed to save 1v1 game results:', error);
+      if (!gameId || !socket.connected) {
+        console.error('Cannot end game: no gameId or socket not connected');
+        return Promise.resolve();
       }
+      
+      console.log('Manually ending game:', gameId);
+      
+      // Mark game as ending to prevent multiple calls
+      set(state => ({ 
+        ...state, 
+        isGameEnded: true,
+        isSavingGameResults: true
+      }));
       
       return new Promise<void>((resolve) => {
         // Set up a one-time listener for the gameOver event
@@ -983,19 +967,14 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
         const timeout = setTimeout(() => {
           console.log('gameOver timeout reached, resolving anyway');
           socket.off('gameOver', handleGameOver);
+          // Set saving flag to false to allow retrying
+          set(state => ({ ...state, isSavingGameResults: false }));
           resolve();
         }, 3000);
         
         // Emit gameOver event to the server
         console.log('Emitting gameOver to server for gameId:', gameId);
         socket.emit('gameOver', { gameId });
-        
-        // Set local state as well in case the server response is delayed
-        set({
-          isGameStarted: false,
-          isGameEnded: true,
-          completionTime
-        });
       });
     },
 
