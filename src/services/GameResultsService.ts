@@ -11,7 +11,7 @@ interface SaveGameParams {
   completionTime?: number;
   opponentId?: string;          // Now optional
   opponentScore?: number;
-  opponentName?: string;        // Added field for opponent name
+  opponentName?: string;        // Not used - removed metadata
   result?: 'win' | 'loss' | 'draw';
   questionDetails: {
     questionId: string;
@@ -39,10 +39,12 @@ export const saveGameResults = async (params: SaveGameParams) => {
         ? params.opponentId 
         : null,
       opponent_score: params.opponentScore || null,
-      // Store opponent name in metadata if available
-      metadata: params.opponentName ? { opponent_name: params.opponentName } : null,
+      // REMOVED: metadata field that was causing the error
+      // metadata: params.opponentName ? { opponent_name: params.opponentName } : null,
       result: params.result || null
     };
+    
+    console.log("Saving game session with data:", gameSessionData);
     
     // Insert the game session
     const { data: gameSession, error: gameError } = await supabase
