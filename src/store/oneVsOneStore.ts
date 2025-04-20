@@ -287,13 +287,14 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
     }));
   });
 
-  // UPDATED - gameOver handler with result saving
-  socket.on('gameOver', (data) => {
-    console.log('Game over:', data);
+  // IMPROVED gameOver handler
+  socket.on('gameOver', async (data) => {
+    console.log('Game over event received:', data);
     const endTime = Date.now();
     const startTime = get().startTime;
     const completionTime = (endTime - startTime) / 1000;
     
+    // Update local state
     set(state => {
       // Update all state at once to ensure consistency
       return {
@@ -301,7 +302,7 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
         isGameStarted: false,
         isGameEnded: true,
         scores: new Map(data.players.map((p: Player) => [p.id, p.score || 0])),
-        playerResponseTimes: new Map(), // Ensure this is properly initialized
+        playerResponseTimes: new Map(),
         players: data.players,
         completionTime
       };
@@ -310,8 +311,10 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
     // Get current state after update
     const currentState = get();
     const currentPlayer = currentState.players.find(p => p.id === socket.id);
+    
+    // Validate player data
     if (!currentPlayer) {
-      console.error('Current player not found in gameOver handler');
+      console.error('Cannot save game: Current player not found in gameOver handler');
       window.dispatchEvent(new CustomEvent('sportiq:gameEnded', { detail: data }));
       return;
     }
@@ -319,54 +322,80 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
     // Get opponent player
     const opponentPlayer = currentState.players.find(p => p.id !== socket.id);
     
-    // Save 1v1 game results to database
-    const saveGameData = async () => {
-      try {
-        const { data: userData } = await supabase.auth.getUser();
-        const user = userData.user;
-        
-        if (user) {
-          console.log('Saving 1v1 game results from gameOver event');
-          
-          // Calculate win/loss/draw
-          let result: 'win' | 'loss' | 'draw' | undefined;
-          if (opponentPlayer) {
-            if (currentPlayer.score > opponentPlayer.score) {
-              result = 'win';
-            } else if (currentPlayer.score < opponentPlayer.score) {
-              result = 'loss';
-            } else {
-              result = 'draw';
-            }
-          }
-          
-          // Save the current player's results
-          await saveGameResults({
-            userId: user.id,
-            mode: '1v1',
-            category: currentState.category,
-            score: currentPlayer.score,
-            correctAnswers: currentPlayer.correctAnswers || 0,
-            totalQuestions: currentState.questions.length,
-            completionTime,
-            opponentId: opponentPlayer?.id,
-            opponentScore: opponentPlayer?.score,
-            result,
-            questionDetails: []
-          });
-          
-          console.log('1v1 game results saved successfully from gameOver event');
-        }
-      } catch (error) {
-        console.error('Failed to save 1v1 game results from gameOver event:', error);
+    try {
+      // Get user data
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      
+      if (userError) {
+        throw new Error(`Auth error: ${userError.message}`);
       }
-    };
-    
-    // Execute save operation
-    saveGameData();
-    
-    // Dispatch an event to signal game end for navigation
-    window.dispatchEvent(new CustomEvent('sportiq:gameEnded', { detail: data }));
+      
+      const user = userData.user;
+      if (!user) {
+        console.log('User not logged in, skipping result saving');
+        window.dispatchEvent(new CustomEvent('sportiq:gameEnded', { detail: data }));
+        return;
+      }
+      
+      console.log('Saving 1v1 game results from gameOver event');
+      
+      // Calculate win/loss/draw result
+      let result: 'win' | 'loss' | 'draw' | null = null;
+      
+      if (opponentPlayer) {
+        if (currentPlayer.score > opponentPlayer.score) {
+          result = 'win';
+        } else if (currentPlayer.score < opponentPlayer.score) {
+          result = 'loss';
+        } else {
+          result = 'draw';
+        }
+      }
+      
+      // Log the data we're about to save
+      console.log('Game data being saved:', {
+        mode: '1v1',
+        category: currentState.category,
+        score: currentPlayer.score,
+        correctAnswers: currentPlayer.correctAnswers || 0,
+        totalQuestions: currentState.questions.length,
+        completionTime,
+        result
+      });
+      
+      // Save the game results
+      const { gameSession, error } = await saveGameResults({
+        userId: user.id,
+        mode: '1v1',
+        category: currentState.category,
+        score: currentPlayer.score,
+        correctAnswers: currentPlayer.correctAnswers || 0,
+        totalQuestions: currentState.questions.length,
+        completionTime,
+        opponentId: opponentPlayer?.id,
+        opponentScore: opponentPlayer?.score,
+        result,
+        questionDetails: []
+      });
+      
+      if (error) {
+        throw error;
+      }
+      
+      console.log('1v1 game results saved successfully with ID:', gameSession?.id);
+      
+    } catch (error) {
+      // Properly log the full error details
+      console.error('Failed to save 1v1 game results:', error);
+      
+      if (error instanceof Error) {
+        console.error('Error details:', error.message);
+        console.error('Error stack:', error.stack);
+      }
+    } finally {
+      // Always dispatch the event to navigate to results, even if saving failed
+      window.dispatchEvent(new CustomEvent('sportiq:gameEnded', { detail: data }));
+    }
   });
 
   socket.on('categoryUpdated', (data) => {
