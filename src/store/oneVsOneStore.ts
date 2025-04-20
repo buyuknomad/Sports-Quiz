@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { io, Socket } from 'socket.io-client';
 import { nanoid } from 'nanoid';
 import type { Category, Player, Question, ChatMessage } from '../types';
+import { saveGameResults } from '../services/GameResultsService';
+import { supabase } from '../lib/supabase-client';
 
 // Debug flag
 const DEBUG = true;
@@ -285,6 +287,7 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
     }));
   });
 
+  // UPDATED - gameOver handler with result saving
   socket.on('gameOver', (data) => {
     console.log('Game over:', data);
     const endTime = Date.now();
@@ -303,6 +306,64 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
         completionTime
       };
     });
+    
+    // Get current state after update
+    const currentState = get();
+    const currentPlayer = currentState.players.find(p => p.id === socket.id);
+    if (!currentPlayer) {
+      console.error('Current player not found in gameOver handler');
+      window.dispatchEvent(new CustomEvent('sportiq:gameEnded', { detail: data }));
+      return;
+    }
+    
+    // Get opponent player
+    const opponentPlayer = currentState.players.find(p => p.id !== socket.id);
+    
+    // Save 1v1 game results to database
+    const saveGameData = async () => {
+      try {
+        const { data: userData } = await supabase.auth.getUser();
+        const user = userData.user;
+        
+        if (user) {
+          console.log('Saving 1v1 game results from gameOver event');
+          
+          // Calculate win/loss/draw
+          let result: 'win' | 'loss' | 'draw' | undefined;
+          if (opponentPlayer) {
+            if (currentPlayer.score > opponentPlayer.score) {
+              result = 'win';
+            } else if (currentPlayer.score < opponentPlayer.score) {
+              result = 'loss';
+            } else {
+              result = 'draw';
+            }
+          }
+          
+          // Save the current player's results
+          await saveGameResults({
+            userId: user.id,
+            mode: '1v1',
+            category: currentState.category,
+            score: currentPlayer.score,
+            correctAnswers: currentPlayer.correctAnswers || 0,
+            totalQuestions: currentState.questions.length,
+            completionTime,
+            opponentId: opponentPlayer?.id,
+            opponentScore: opponentPlayer?.score,
+            result,
+            questionDetails: []
+          });
+          
+          console.log('1v1 game results saved successfully from gameOver event');
+        }
+      } catch (error) {
+        console.error('Failed to save 1v1 game results from gameOver event:', error);
+      }
+    };
+    
+    // Execute save operation
+    saveGameData();
     
     // Dispatch an event to signal game end for navigation
     window.dispatchEvent(new CustomEvent('sportiq:gameEnded', { detail: data }));
@@ -811,11 +872,70 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
       });
     },
     
+    // UPDATED endGame function
     endGame: async () => {
-      const { gameId, socket } = get();
+      const state = get();
+      const { gameId, socket, category, questions, startTime } = state;
       if (!gameId || !socket.connected) return Promise.resolve();
       
       console.log('Manually ending game:', gameId);
+      
+      // Calculate completion time
+      const endTime = Date.now();
+      const completionTime = (endTime - startTime) / 1000;
+      
+      // Get current player details
+      const currentPlayer = state.getCurrentPlayer();
+      if (!currentPlayer) {
+        console.error('Current player not found');
+        return Promise.resolve();
+      }
+      
+      // Get opponent player
+      const opponentPlayer = state.players.find(p => p.id !== currentPlayer.id);
+      
+      // *** FIX #4: Save 1v1 game results to the database ***
+      try {
+        const { data } = await supabase.auth.getUser();
+        const user = data.user;
+        
+        if (user) {
+          console.log('Saving 1v1 game results to database');
+          
+          // Calculate win/loss/draw
+          let result: 'win' | 'loss' | 'draw' | undefined;
+          if (opponentPlayer) {
+            if (currentPlayer.score > opponentPlayer.score) {
+              result = 'win';
+            } else if (currentPlayer.score < opponentPlayer.score) {
+              result = 'loss';
+            } else {
+              result = 'draw';
+            }
+          }
+          
+          // Save the current player's results
+          await saveGameResults({
+            userId: user.id,
+            mode: '1v1',
+            category,
+            score: currentPlayer.score,
+            correctAnswers: currentPlayer.correctAnswers || 0,
+            totalQuestions: questions.length,
+            completionTime,
+            opponentId: opponentPlayer?.id,
+            opponentScore: opponentPlayer?.score,
+            result,
+            questionDetails: [] // We don't track individual question details for 1v1 games
+          });
+          
+          console.log('1v1 game results saved successfully');
+        } else {
+          console.log('User not logged in, skipping result saving');
+        }
+      } catch (error) {
+        console.error('Failed to save 1v1 game results:', error);
+      }
       
       return new Promise<void>((resolve) => {
         // Set up a one-time listener for the gameOver event
@@ -840,10 +960,6 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
         socket.emit('gameOver', { gameId });
         
         // Set local state as well in case the server response is delayed
-        const endTime = Date.now();
-        const startTime = get().startTime;
-        const completionTime = (endTime - startTime) / 1000;
-        
         set({
           isGameStarted: false,
           isGameEnded: true,
