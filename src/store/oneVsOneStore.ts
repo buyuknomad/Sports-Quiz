@@ -953,41 +953,49 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
       });
     },
     
-    // UPDATED endGame function to fix database errors and race conditions
-    endGame: async () => {
-      const state = get();
-      const { gameId, socket } = state;
-      
-      if (!gameId || !socket.connected) {
-        console.error('Cannot end game: no gameId or socket not connected');
-        return Promise.resolve();
-      }
-      
-      console.log('Manually ending game:', gameId);
-      
-      return new Promise<void>((resolve) => {
-        // Set up a one-time listener for the gameOver event
-        const handleGameOver = (data: any) => {
-          console.log('gameOver event received in endGame handler');
-          socket.off('gameOver', handleGameOver);
-          clearTimeout(timeout);
-          resolve();
-        };
-        
-        socket.once('gameOver', handleGameOver);
-        
-        // Add a timeout in case the server doesn't respond
-        const timeout = setTimeout(() => {
-          console.log('gameOver timeout reached, resolving anyway');
-          socket.off('gameOver', handleGameOver);
-          resolve();
-        }, 3000);
-        
-        // Emit gameOver event to the server
-        console.log('Emitting gameOver to server for gameId:', gameId);
-        socket.emit('gameOver', { gameId });
-      });
-    },
+   endGame: async () => {
+  const state = get();
+  const { gameId, socket } = state;
+  
+  // Prevent manually ending the game on the last question
+  const isLastQuestion = state.currentQuestion === state.questions.length - 1;
+  
+  // Only manually end the game if we're not on the last question or if it's a forced exit
+  if (isLastQuestion) {
+    console.log('On last question, letting server handle game ending');
+    return Promise.resolve();
+  }
+  
+  if (!gameId || !socket.connected) {
+    console.error('Cannot end game: no gameId or socket not connected');
+    return Promise.resolve();
+  }
+  
+  console.log('Manually ending game:', gameId);
+  
+  return new Promise<void>((resolve) => {
+    // Set up a one-time listener for the gameOver event
+    const handleGameOver = (data: any) => {
+      console.log('gameOver event received in endGame handler');
+      socket.off('gameOver', handleGameOver);
+      clearTimeout(timeout);
+      resolve();
+    };
+    
+    socket.once('gameOver', handleGameOver);
+    
+    // Add a timeout in case the server doesn't respond
+    const timeout = setTimeout(() => {
+      console.log('gameOver timeout reached, resolving anyway');
+      socket.off('gameOver', handleGameOver);
+      resolve();
+    }, 3000);
+    
+    // Emit gameOver event to the server
+    console.log('Emitting gameOver to server for gameId:', gameId);
+    socket.emit('gameOver', { gameId });
+  });
+},
 
     setCategory: (category: Category) => {
       const state = get();
