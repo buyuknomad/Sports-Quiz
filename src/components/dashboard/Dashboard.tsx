@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase-client';
@@ -47,73 +47,101 @@ const Dashboard: React.FC<DashboardProps> = ({ onPlayNewQuiz }) => {
   
   const navigate = useNavigate();
 
+  // Memoize the fetch function to prevent unnecessary recreations
+  const fetchGameHistory = useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      setLoading(true);
+      
+      // *** FIX #1: Get the total count of games separately ***
+      const { count, error: countError } = await supabase
+        .from('game_sessions')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+        
+      if (countError) {
+        console.error('Error fetching game count:', countError);
+      }
+      
+      // Get the recent games for display
+      const { data, error } = await supabase
+        .from('game_sessions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+          
+      if (error) {
+        throw error;
+      }
+      
+      // *** FIX #4: Check for any 1v1 games that weren't saved ***
+      // (This is just for logging - the real fix is in oneVsOneStore.ts)
+      const oneVsOneGames = data?.filter(game => game.mode === '1v1') || [];
+      console.log(`Found ${oneVsOneGames.length} 1v1 games in history`);
+      
+      setGameHistory(data || []);
+      
+      // Calculate stats using the available history data
+      if (data && data.length > 0) {
+        // Category frequency
+        const categoryCount: Record<string, number> = {};
+        let totalScore = 0;
+        let highestScore = 0;
+        let totalCorrectAnswers = 0;
+        let totalQuestions = 0;
+        
+        data.forEach(game => {
+          categoryCount[game.category] = (categoryCount[game.category] || 0) + 1;
+          totalScore += game.score;
+          highestScore = Math.max(highestScore, game.score);
+          
+          // *** FIX #2: Ensure we handle null or undefined values for correct_answers ***
+          totalCorrectAnswers += game.correct_answers || 0;
+          totalQuestions += game.total_questions || 0;
+        });
+        
+        // Find favorite category
+        let favoriteCategory = '';
+        let maxCount = 0;
+        
+        Object.entries(categoryCount).forEach(([category, count]) => {
+          if (count > maxCount) {
+            maxCount = count;
+            favoriteCategory = category;
+          }
+        });
+        
+        // *** FIX #1: Use the actual count for totalGames ***
+        // *** FIX #2: Ensure we don't divide by zero for accuracy ***
+        setStats({
+          totalGames: count || data.length, // Use count from separate query
+          averageScore: data.length > 0 ? Math.round(totalScore / data.length) : 0,
+          highestScore,
+          averageAccuracy: totalQuestions > 0 ? Math.round((totalCorrectAnswers / totalQuestions) * 100) : 0,
+          favoriteCategory: favoriteCategory.charAt(0).toUpperCase() + favoriteCategory.slice(1),
+          totalCorrectAnswers
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching game history:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+  
+  // *** FIX #3: Add a cache reference to avoid unnecessary fetches ***
+  const hasInitialFetch = React.useRef(false);
+  
   // Fetch user's game history
   useEffect(() => {
-    const fetchGameHistory = async () => {
-      if (!user) return;
-      
-      try {
-        setLoading(true);
-        
-        const { data, error } = await supabase
-          .from('game_sessions')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(10);
-          
-        if (error) {
-          throw error;
-        }
-        
-        setGameHistory(data || []);
-        
-        // Calculate stats if we have game history
-        if (data && data.length > 0) {
-          // Category frequency
-          const categoryCount: Record<string, number> = {};
-          let totalScore = 0;
-          let highestScore = 0;
-          let totalCorrectAnswers = 0;
-          let totalQuestions = 0;
-          
-          data.forEach(game => {
-            categoryCount[game.category] = (categoryCount[game.category] || 0) + 1;
-            totalScore += game.score;
-            highestScore = Math.max(highestScore, game.score);
-            totalCorrectAnswers += game.correct_answers;
-            totalQuestions += game.total_questions;
-          });
-          
-          // Find favorite category
-          let favoriteCategory = '';
-          let maxCount = 0;
-          
-          Object.entries(categoryCount).forEach(([category, count]) => {
-            if (count > maxCount) {
-              maxCount = count;
-              favoriteCategory = category;
-            }
-          });
-          
-          setStats({
-            totalGames: data.length,
-            averageScore: Math.round(totalScore / data.length),
-            highestScore,
-            averageAccuracy: Math.round((totalCorrectAnswers / totalQuestions) * 100),
-            favoriteCategory: favoriteCategory.charAt(0).toUpperCase() + favoriteCategory.slice(1),
-            totalCorrectAnswers
-          });
-        }
-      } catch (error) {
-        console.error('Error fetching game history:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchGameHistory();
-  }, [user]);
+    // Only fetch if we haven't fetched yet or if user changes
+    if (!hasInitialFetch.current && user) {
+      fetchGameHistory();
+      hasInitialFetch.current = true;
+    }
+  }, [user, fetchGameHistory]);
 
   // Handle sign out button click - show confirmation dialog
   const handleSignOutClick = () => {
@@ -170,6 +198,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onPlayNewQuiz }) => {
       localStorage.setItem('navigationSource', 'dashboard');
       navigate('/welcome');
     }
+  };
+
+  // Force refresh the history data
+  const handleRefreshHistory = () => {
+    hasInitialFetch.current = false;
+    fetchGameHistory();
   };
 
   return (
@@ -292,9 +326,20 @@ const Dashboard: React.FC<DashboardProps> = ({ onPlayNewQuiz }) => {
                 <BarChart2 size={20} className="text-blue-400" />
                 Recent Game History
               </h2>
-              <Link to="/history" className="text-blue-400 hover:text-blue-300 text-sm flex items-center">
-                View All <ArrowRight size={16} />
-              </Link>
+              <div className="flex items-center gap-2">
+                {/* Added refresh button */}
+                <button onClick={handleRefreshHistory} className="text-blue-400 hover:text-blue-300">
+                  <motion.div
+                    whileHover={{ rotate: 180 }}
+                    transition={{ duration: 0.5 }}
+                  >
+                    <RotateCw size={16} />
+                  </motion.div>
+                </button>
+                <Link to="/history" className="text-blue-400 hover:text-blue-300 text-sm flex items-center">
+                  View All <ArrowRight size={16} />
+                </Link>
+              </div>
             </div>
             
             {loading ? (
@@ -345,7 +390,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onPlayNewQuiz }) => {
                         <div className="text-center">
                           <p className="text-gray-400 text-xs">Accuracy</p>
                           <p className="text-blue-400 font-bold">
-                            {Math.round((game.correct_answers / game.total_questions) * 100)}%
+                            {/* *** FIX #2: Proper accuracy calculation with null check *** */}
+                            {game.total_questions > 0 
+                              ? Math.round(((game.correct_answers || 0) / game.total_questions) * 100)
+                              : 0}%
                           </p>
                         </div>
                         {game.mode === '1v1' && (
@@ -385,5 +433,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onPlayNewQuiz }) => {
     </div>
   );
 };
+
+// Add the missing RotateCw icon
+import { RotateCw } from 'lucide-react';
 
 export default Dashboard;
