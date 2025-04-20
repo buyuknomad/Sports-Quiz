@@ -363,7 +363,7 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
         result
       });
       
-      // Save the game results
+      // Save the game results but don't save socket IDs
       const { gameSession, error } = await saveGameResults({
         userId: user.id,
         mode: '1v1',
@@ -372,8 +372,9 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
         correctAnswers: currentPlayer.correctAnswers || 0,
         totalQuestions: currentState.questions.length,
         completionTime,
-        opponentId: opponentPlayer?.id,
+        // Don't pass opponentId: opponentPlayer?.id,
         opponentScore: opponentPlayer?.score,
+        opponentName: opponentPlayer?.username, // Add if the schema supports it
         result,
         questionDetails: []
       });
@@ -943,7 +944,7 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
             }
           }
           
-          // Save the current player's results
+          // Save the current player's results but don't save socket IDs
           await saveGameResults({
             userId: user.id,
             mode: '1v1',
@@ -952,8 +953,9 @@ export const useOneVsOneStore = create<OneVsOneStore>((set, get) => {
             correctAnswers: currentPlayer.correctAnswers || 0,
             totalQuestions: questions.length,
             completionTime,
-            opponentId: opponentPlayer?.id,
+            // Don't pass opponentId: opponentPlayer?.id,
             opponentScore: opponentPlayer?.score,
+            opponentName: opponentPlayer?.username, // Add if schema supports it
             result,
             questionDetails: [] // We don't track individual question details for 1v1 games
           });
