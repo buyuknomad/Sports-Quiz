@@ -23,29 +23,40 @@ interface SaveGameParams {
 // Service to save game results to the database
 export const saveGameResults = async (params: SaveGameParams) => {
   try {
+    console.log('Saving game results with params:', JSON.stringify({
+      ...params,
+      userId: params.userId.substring(0, 8) + '...' // Log truncated user ID for privacy
+    }));
+
+    // Prepare the data - make sure field names match EXACTLY what the database expects
+    const gameSessionData = {
+      user_id: params.userId,
+      mode: params.mode,
+      category: params.category,
+      score: params.score,
+      correct_answers: params.correctAnswers,
+      total_questions: params.totalQuestions,
+      completion_time: params.completionTime || null,
+      opponent_id: params.opponentId || null,
+      opponent_score: params.opponentScore || null,
+      result: params.result || null
+    };
+
+    console.log('Formatted game session data:', gameSessionData);
+    
     // First, insert the game session
     const { data: gameSession, error: gameError } = await supabase
       .from('game_sessions')
-      .insert({
-        user_id: params.userId,
-        mode: params.mode,
-        category: params.category,
-        score: params.score,
-        correct_answers: params.correctAnswers,
-        total_questions: params.totalQuestions,
-        completion_time: params.completionTime,
-        opponent_id: params.opponentId || null,
-        opponent_score: params.opponentScore || null,
-        result: params.result || null
-      })
+      .insert(gameSessionData)
       .select()
       .single();
       
     if (gameError) {
+      console.error('Supabase error details:', gameError);
       throw gameError;
     }
     
-    // Then, insert the question details
+    // Then, insert the question details if available
     if (params.questionDetails.length > 0) {
       const userAnswers = params.questionDetails.map(detail => ({
         game_session_id: gameSession.id,
@@ -66,10 +77,10 @@ export const saveGameResults = async (params: SaveGameParams) => {
       }
     }
     
-    return { gameSession };
+    return { gameSession, error: null };
   } catch (error) {
     console.error('Error saving game results:', error);
-    return { error };
+    return { gameSession: null, error };
   }
 };
 
@@ -87,10 +98,10 @@ export const getGameHistory = async (userId: string, limit = 10) => {
       throw error;
     }
     
-    return { data };
+    return { data, error: null };
   } catch (error) {
     console.error('Error fetching game history:', error);
-    return { error };
+    return { data: null, error };
   }
 };
 
@@ -118,10 +129,11 @@ export const getGameDetails = async (gameId: string) => {
     
     return { 
       game: gameData, 
-      answers: answersData 
+      answers: answersData,
+      error: null
     };
   } catch (error) {
     console.error('Error fetching game details:', error);
-    return { error };
+    return { game: null, answers: null, error };
   }
 };
