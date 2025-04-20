@@ -623,6 +623,71 @@ async function fallbackTopicFetch() {
   return topicsData;
 }
 
+// --- NEW Helper Function: Select Balanced Questions ---
+function selectBalancedUniqueQuestions(
+    uniqueCandidates: TriviaQuestion[],
+    targetCount: number
+): TriviaQuestion[] {
+    if (uniqueCandidates.length <= targetCount) {
+        console.log(`Available unique candidates (${uniqueCandidates.length}) is less than or equal to target (${targetCount}). Using all.`);
+        return uniqueCandidates; // Not enough to balance, return all
+    }
+
+    const categories = ['football', 'basketball', 'tennis', 'olympics'];
+    const questionsByCategory: Record<string, TriviaQuestion[]> = {};
+    categories.forEach(cat => questionsByCategory[cat] = []);
+
+    // Group unique candidates by category
+    uniqueCandidates.forEach(q => {
+        if (questionsByCategory[q.category]) {
+            questionsByCategory[q.category].push(q);
+        } else {
+            console.warn(`Warning: Unique question found with unexpected category: ${q.category}`);
+        }
+    });
+
+    // Log category distribution of unique candidates
+    for (const category of categories) {
+        console.log(`Category ${category}: ${questionsByCategory[category].length} unique candidates available`);
+    }
+
+    const selectedQuestions: TriviaQuestion[] = [];
+    let remainingTarget = targetCount;
+    const categoryKeys = Object.keys(questionsByCategory);
+
+    // Iteratively select one from each category until target is met or categories run out
+    while (remainingTarget > 0 && categoryKeys.some(cat => questionsByCategory[cat].length > 0)) {
+        for (const category of categoryKeys) {
+            if (remainingTarget === 0) break;
+            const question = questionsByCategory[category].shift(); // Take one question from this category
+            if (question) {
+                selectedQuestions.push(question);
+                remainingTarget--;
+                console.log(`Selected ${category} question, remaining target: ${remainingTarget}`);
+            }
+        }
+    }
+
+    // If target not met (e.g., some categories had few unique questions), fill remaining slots
+    if (remainingTarget > 0) {
+        console.log(`Target not met after initial balanced selection. Filling remaining ${remainingTarget} slots...`);
+        const remainingCandidatesFlat = categoryKeys.flatMap(cat => questionsByCategory[cat]);
+        // Shuffle remaining to avoid bias towards categories listed first if there's a tie
+        remainingCandidatesFlat.sort(() => Math.random() - 0.5);
+        selectedQuestions.push(...remainingCandidatesFlat.slice(0, remainingTarget));
+    }
+
+    // Log final category distribution
+    const finalDistribution: Record<string, number> = {};
+    categories.forEach(cat => finalDistribution[cat] = 0);
+    selectedQuestions.forEach(q => finalDistribution[q.category]++);
+    console.log("Final category distribution:");
+    for (const [category, count] of Object.entries(finalDistribution)) {
+        console.log(`  ${category}: ${count}`);
+    }
+
+    return selectedQuestions;
+}
 
 // --- Main Execution Logic ---
 async function runDailyGeneration() {
@@ -632,7 +697,7 @@ async function runDailyGeneration() {
     console.log("Fetching inspiration topics with category balance...");
     let inspirationList = "General sports knowledge"; // Default fallback
     
-    // Use the new balanced topic fetch function
+    // Use the balanced topic fetch function
     const topicsData = await fetchBalancedTopics();
     
     let topicIdsToUpdate = [];
@@ -657,20 +722,20 @@ async function runDailyGeneration() {
     }
 
 
-    // --- Filter for Unique Questions ---
-    const uniqueQuestions: TriviaQuestion[] = [];
+    // --- Filter for Unique Questions (MODIFIED) ---
+    const allUniqueCandidates: TriviaQuestion[] = []; // Store ALL unique ones first
     let checkAttempts = 0;
     const maxCheckAttempts = candidates.length + 10;
-    console.log(`Checking ${candidates.length} candidates for uniqueness (Target: ${TARGET_QUESTIONS_COUNT})...`);
+    console.log(`Checking ALL ${candidates.length} candidates for uniqueness...`);
+    
     for (const candidate of candidates) {
-        if (uniqueQuestions.length >= TARGET_QUESTIONS_COUNT) {
-            console.log(`Reached target of ${TARGET_QUESTIONS_COUNT} unique questions.`);
+        // Removed early break condition to process ALL candidates
+        
+        if (checkAttempts++ >= maxCheckAttempts) {
+            console.warn("Reached max check attempts for uniqueness. Proceeding with found unique questions.");
             break;
         }
-        if (checkAttempts++ >= maxCheckAttempts) {
-             console.warn("Reached max check attempts for uniqueness. Proceeding with found unique questions.");
-             break;
-        }
+        
         console.log(`Processing candidate: [${candidate.category}] "${candidate.question.substring(0, 40)}..."`);
         const embedding = await generateSingleEmbedding(candidate.question);
         if (!embedding) {
@@ -681,37 +746,42 @@ async function runDailyGeneration() {
         candidate.embedding = embedding;
         const unique = await isQuestionUnique(embedding);
         if (unique) {
-            console.log("  -> Adding unique question to list.");
-            uniqueQuestions.push(candidate);
+            console.log("  -> Adding unique question to temporary list.");
+            allUniqueCandidates.push(candidate); // Add to the list of ALL unique candidates
         } else {
             console.log(`  -> Question NOT unique based on similarity threshold. Skipping.`);
         }
         await new Promise(resolve => setTimeout(resolve, 150));
     }
+    console.log(`Found ${allUniqueCandidates.length} unique candidates in total.`);
     // --- End Filter Unique ---
 
 
-    // --- Insert Unique Questions (Uses retry helper internally) ---
-    console.log(`Found ${uniqueQuestions.length} unique questions after checking candidates.`);
-    const questionsToInsert = uniqueQuestions.slice(0, TARGET_QUESTIONS_COUNT);
+    // --- NEW: Select Balanced Questions ---
+    const questionsToInsert = selectBalancedUniqueQuestions(allUniqueCandidates, TARGET_QUESTIONS_COUNT);
+    console.log(`Selected ${questionsToInsert.length} questions for insertion after balancing.`);
+    // --- End Select Balanced ---
+
+
+    // --- Insert Selected Questions ---
     let insertSuccessful = false;
     if (questionsToInsert.length > 0) {
         insertSuccessful = await insertQuestionsIntoDB(questionsToInsert);
     } else {
-        console.log("No unique new questions identified to insert.");
+        console.log("No unique new questions identified to insert after balancing.");
     }
-    // --- End Insert Unique ---
+    // --- End Insert Selected ---
 
 
     // --- Update Timestamps for Used Topics ---
-    if (topicIdsToUpdate && topicIdsToUpdate.length > 0) {
+    if (insertSuccessful && topicIdsToUpdate && topicIdsToUpdate.length > 0) {
       console.log(`Updating last_used_at for ${topicIdsToUpdate.length} inspiration topics using UPSERT...`);
       
       try {
         // 1. First, fetch the complete topic records to get all required fields
         const { data: topicsData, error: fetchError } = await supabaseAdmin
           .from(INSPIRATION_TABLE_NAME)
-          .select('id, topic, category')  // Include all required fields
+          .select('id, topic, category')
           .in('id', topicIdsToUpdate);
           
         if (fetchError) {
@@ -728,9 +798,9 @@ async function runDailyGeneration() {
         const now = new Date().toISOString();
         const updates = topicsData.map(topic => ({
           id: topic.id,
-          topic: topic.topic,           // Include the required topic field
-          category: topic.category,     // Include any other required fields
-          last_used_at: now            // The field we want to update
+          topic: topic.topic,
+          category: topic.category,
+          last_used_at: now
         }));
         
         // 3. Perform the upsert
@@ -749,6 +819,8 @@ async function runDailyGeneration() {
       } catch (e) {
         console.error("Exception during timestamp update:", e);
       }
+    } else if (topicIdsToUpdate && topicIdsToUpdate.length > 0) {
+      console.log("Skipping topic timestamp update as question insertion failed or no questions were inserted.");
     }
     // --- End Update Timestamps ---
 
