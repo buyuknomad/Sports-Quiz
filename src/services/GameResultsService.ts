@@ -11,7 +11,6 @@ interface SaveGameParams {
   completionTime?: number;
   opponentId?: string;          // Now optional
   opponentScore?: number;
-  opponentName?: string;        // Not used - removed metadata
   result?: 'win' | 'loss' | 'draw';
   questionDetails: {
     questionId: string;
@@ -39,8 +38,6 @@ export const saveGameResults = async (params: SaveGameParams) => {
         ? params.opponentId 
         : null,
       opponent_score: params.opponentScore || null,
-      // REMOVED: metadata field that was causing the error
-      // metadata: params.opponentName ? { opponent_name: params.opponentName } : null,
       result: params.result || null
     };
     
