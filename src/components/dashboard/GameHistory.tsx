@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase-client';
@@ -38,41 +38,64 @@ const GameHistory: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [searchQuery, setSearchQuery] = useState('');
+  const [totalCount, setTotalCount] = useState(0);
+  
+  // *** FIX #3: Add a reference to track if data has been fetched ***
+  const hasDataBeenFetched = useRef(false);
   
   const itemsPerPage = 10;
 
-  // Fetch user's game history
-  useEffect(() => {
-    const fetchGameHistory = async () => {
-      if (!user) return;
-      
-      try {
-        setLoading(true);
-        
-        const { data, error } = await supabase
-          .from('game_sessions')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
-          
-        if (error) {
-          throw error;
-        }
-        
-        setGameHistory(data || []);
-        
-        // Extract unique categories for filter
-        const categories = [...new Set((data || []).map(game => game.category))];
-        
-      } catch (error) {
-        console.error('Error fetching game history:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  // Memoize the fetch function to prevent unnecessary recreations
+  const fetchGameHistory = useCallback(async () => {
+    if (!user) return;
     
-    fetchGameHistory();
+    try {
+      setLoading(true);
+      
+      // *** IMPROVEMENT: Get the total count of all games ***
+      const { count, error: countError } = await supabase
+        .from('game_sessions')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+        
+      if (countError) {
+        console.error('Error fetching game count:', countError);
+      } else if (count !== null) {
+        setTotalCount(count);
+      }
+      
+      // Get all game history
+      const { data, error } = await supabase
+        .from('game_sessions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+          
+      if (error) {
+        throw error;
+      }
+      
+      // *** FIX #4: Log the number of 1v1 games for debugging ***
+      const oneVsOneGames = data?.filter(game => game.mode === '1v1') || [];
+      console.log(`Found ${oneVsOneGames.length} 1v1 games in history`);
+      
+      setGameHistory(data || []);
+      
+      // Mark that data has been fetched
+      hasDataBeenFetched.current = true;
+    } catch (error) {
+      console.error('Error fetching game history:', error);
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
+
+  // Fetch user's game history - only once or when user changes
+  useEffect(() => {
+    if (!hasDataBeenFetched.current && user) {
+      fetchGameHistory();
+    }
+  }, [user, fetchGameHistory]);
 
   // Apply filters and sorting
   useEffect(() => {
@@ -110,9 +133,12 @@ const GameHistory: React.FC = () => {
         result.sort((a, b) => b.score - a.score);
         break;
       case 'accuracy':
-        result.sort((a, b) => 
-          (b.correct_answers / b.total_questions) - (a.correct_answers / a.total_questions)
-        );
+        result.sort((a, b) => {
+          // *** FIX #2: Properly calculate accuracy with null/zero checks ***
+          const accuracyA = a.total_questions > 0 ? ((a.correct_answers || 0) / a.total_questions) : 0;
+          const accuracyB = b.total_questions > 0 ? ((b.correct_answers || 0) / b.total_questions) : 0;
+          return accuracyB - accuracyA;
+        });
         break;
     }
     
@@ -172,9 +198,9 @@ const GameHistory: React.FC = () => {
       game.mode,
       game.category,
       game.score,
-      game.correct_answers,
+      game.correct_answers || 0, // *** FIX: Handle null values ***
       game.total_questions,
-      `${Math.round((game.correct_answers / game.total_questions) * 100)}%`,
+      game.total_questions > 0 ? `${Math.round(((game.correct_answers || 0) / game.total_questions) * 100)}%` : '0%',
       game.completion_time ? `${game.completion_time.toFixed(1)}s` : 'N/A',
       game.result || 'N/A'
     ].join(','));
@@ -192,6 +218,12 @@ const GameHistory: React.FC = () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  // Manual refresh function
+  const handleRefresh = () => {
+    hasDataBeenFetched.current = false;
+    fetchGameHistory();
   };
 
   // Get unique categories for filter
@@ -218,17 +250,36 @@ const GameHistory: React.FC = () => {
             </div>
           </div>
           
-          <motion.button
-            onClick={exportToCSV}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white flex items-center gap-2"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            disabled={filteredHistory.length === 0}
-            title={filteredHistory.length === 0 ? "No data to export" : "Export as CSV"}
-          >
-            <Download size={18} />
-            Export CSV
-          </motion.button>
+          <div className="flex gap-2">
+            {/* Added refresh button */}
+            <motion.button
+              onClick={handleRefresh}
+              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white flex items-center gap-2"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              title="Refresh data"
+            >
+              <RefreshCw size={18} />
+              Refresh
+            </motion.button>
+            
+            <motion.button
+              onClick={exportToCSV}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white flex items-center gap-2"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              disabled={filteredHistory.length === 0}
+              title={filteredHistory.length === 0 ? "No data to export" : "Export as CSV"}
+            >
+              <Download size={18} />
+              Export CSV
+            </motion.button>
+          </div>
+        </div>
+        
+        {/* Total count display */}
+        <div className="mb-3 text-gray-400 text-sm">
+          Total games: <span className="text-white font-medium">{totalCount}</span>
         </div>
         
         {/* Filters */}
@@ -369,7 +420,10 @@ const GameHistory: React.FC = () => {
                     </div>
                     
                     <div className="text-center font-medium text-blue-400">
-                      {Math.round((game.correct_answers / game.total_questions) * 100)}%
+                      {/* *** FIX #2: Properly handle null/zero values for accuracy *** */}
+                      {game.total_questions > 0 
+                        ? Math.round(((game.correct_answers || 0) / game.total_questions) * 100) 
+                        : 0}%
                     </div>
                     
                     <div className="text-center text-gray-300 hidden sm:block">
@@ -413,5 +467,8 @@ const GameHistory: React.FC = () => {
     </div>
   );
 };
+
+// Import RefreshCw icon
+import { RefreshCw } from 'lucide-react';
 
 export default GameHistory;
